@@ -72,7 +72,7 @@ public class JwtProvider {
         TokenType actualType = TokenType.valueOf(claims.get("type", String.class));
 
         if(expectedType!=actualType){
-            throw new IllegalArgumentException("Invalid token type");
+            throw new InvalidTokenException();
         }
 
         return claims;
