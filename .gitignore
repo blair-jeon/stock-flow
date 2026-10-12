@@ -39,9 +39,10 @@ out/
 ### macOS ###
 .DS_Store
 
-### Enviroment variables and secrets ###
+### Environment variables and secrets ###
 .env
 .env.*
+!.env.example
 
 ### Logs ###
 *.log
