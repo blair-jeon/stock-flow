@@ -109,14 +109,14 @@ class UserServiceTest {
 
     @Test
     void shouldThrowUserNotFoundWhenUserDoesNotExist(){
-        when(userRepository.findById(2L)).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(
                 UserNotFoundException.class,
-                () -> userService.get(2L)
+                () -> userService.get(1L)
         );
 
-        verify(userRepository).findById(2L);
+        verify(userRepository).findById(1L);
     }
 
     @Test

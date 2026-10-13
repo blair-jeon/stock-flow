@@ -41,6 +41,7 @@ public class UserService {
     }
 
     public UserResponse get(Long userId){
+
         return UserResponse.from(getUserById(userId));
     }
 

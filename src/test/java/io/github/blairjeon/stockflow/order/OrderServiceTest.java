@@ -73,7 +73,7 @@ class OrderServiceTest{
         orderService.create(1L, request);
 
         verify(userRepository).existsByIdAndUserRole(1L, UserRole.USER);
-        verify(productRepository).findAllById(List.of(10L, 20L));
+        verify(productRepository).findAllByIdInAndProductStatus(List.of(10L, 20L), ProductStatus.ACTIVE);
         verify(orderRepository).save(orderCaptor.capture());
         verify(orderItemRepository).saveAll(itemCaptor.capture());
 
