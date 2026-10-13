@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    pull_request:
-      branches: [main]
+  pull_request:
+    branches: [main]
 
-permission:
+permissions:
   contents: read
 
 jobs:
@@ -23,10 +23,10 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd"mysqladmin ping -h 127.0.0.1 --silent"
-          --health-intervals=10s
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s
           --health-timeout=5s
-          --heal-retries=10
+          --health-retries=10
 
     steps:
       - name: Check out code
@@ -39,7 +39,7 @@ jobs:
           java-version: '21'
 
       - name: Build and test
-        run: ./gradlew build --no--daemon
+        run: ./gradlew build --no-daemon
         env:
           DB_URL: jdbc:mysql://127.0.0.1:3306/stockflow_ci?useSSL=false&allowPublicKeyRetrieval=true
           DB_USERNAME: stockflow_ci
