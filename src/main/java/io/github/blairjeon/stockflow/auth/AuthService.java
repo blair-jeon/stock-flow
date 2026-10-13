@@ -7,6 +7,7 @@ import io.github.blairjeon.stockflow.auth.exception.InvalidCredentialsException;
 import io.github.blairjeon.stockflow.security.jwt.JwtProvider;
 import io.github.blairjeon.stockflow.user.*;
 import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

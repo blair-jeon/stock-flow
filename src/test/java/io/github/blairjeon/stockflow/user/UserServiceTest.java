@@ -4,6 +4,7 @@ import io.github.blairjeon.stockflow.user.dto.*;
 import io.github.blairjeon.stockflow.user.exception.DuplicateLoginIdException;
 import io.github.blairjeon.stockflow.user.exception.PasswordMismatchException;
 import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,31 +23,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class UserServiceTest {
+class UserServiceTest {
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private PasswordEncoder passwordEncoder;
+    @InjectMocks private UserService userService;
 
-    @Mock
-    private PasswordEncoder passwordEncoder;
+    private User existingUser(){
+        User user = User.create("alice", "encoded-password", "Alice");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-    @InjectMocks
-    private UserService userService;
-
-    @Test
-    void shouldRejectDuplicateLoginIdBeforeSavingUser(){
-        UserCreateRequest request = new UserCreateRequest("alice", "test-password", "Alice");
-
-        when(userRepository.existsByLoginId("alice"))
-                .thenReturn(true);
-
-        assertThrows(
-                DuplicateLoginIdException.class,
-                () -> userService.create(request)
-        );
-
-        verify(userRepository, never()).saveAndFlush(any(User.class));
-        verifyNoInteractions(passwordEncoder);
+        return user;
     }
 
     @Test
@@ -68,6 +55,22 @@ public class UserServiceTest {
         assertEquals("alice", savedUser.getLoginId());
         assertEquals("encoded-password", savedUser.getPasswordHash());
         assertEquals("Alice", savedUser.getDisplayName());
+    }
+
+    @Test
+    void shouldRejectDuplicateLoginIdBeforeSavingUser(){
+        UserCreateRequest request = new UserCreateRequest("alice", "test-password", "Alice");
+
+        when(userRepository.existsByLoginId("alice"))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateLoginIdException.class,
+                () -> userService.create(request)
+        );
+
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verifyNoInteractions(passwordEncoder);
     }
 
     @Test
@@ -94,9 +97,7 @@ public class UserServiceTest {
 
     @Test
     void shouldReturnUserWhenFound(){
-        User user = User.create("alice", "encoded-password", "Alice");
-
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        User user = existingUser();
 
         UserResponse response = userService.get(1L);
 
@@ -108,25 +109,24 @@ public class UserServiceTest {
 
     @Test
     void shouldThrowUserNotFoundWhenUserDoesNotExist(){
-        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
         assertThrows(
                 UserNotFoundException.class,
-                () -> userService.get(1L)
+                () -> userService.get(2L)
         );
 
-        verify(userRepository).findById(1L);
+        verify(userRepository).findById(2L);
     }
 
     @Test
     void shouldUpdatePasswordWhenOldPasswordMatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserPasswordUpdateRequest request = new UserPasswordUpdateRequest(
                 "old-password",
                 "new-password"
         );
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("old-password", "encoded-password"))
                 .thenReturn(true);
         when(passwordEncoder.encode("new-password"))
@@ -143,13 +143,12 @@ public class UserServiceTest {
 
     @Test
     void shouldRejectPasswordUpdateWhenOldPasswordMismatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserPasswordUpdateRequest request = new UserPasswordUpdateRequest(
                 "old-wrong-password",
                 "new-password"
         );
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("old-wrong-password", "encoded-password"))
                 .thenReturn(false);
 
@@ -179,10 +178,9 @@ public class UserServiceTest {
 
     @Test
     void shouldUpdateDisplayNameWhenPasswordMatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserDisplayNameUpdateRequest request = new UserDisplayNameUpdateRequest("password", "Alice-updated");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "encoded-password"))
                 .thenReturn(true);
 
@@ -195,10 +193,9 @@ public class UserServiceTest {
 
     @Test
     void shouldRejectDisplayNameUpdateWhenPasswordMismatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserDisplayNameUpdateRequest request = new UserDisplayNameUpdateRequest("wrong-password", "Alice-updated");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong-password", "encoded-password"))
                 .thenReturn(false);
 
@@ -225,10 +222,9 @@ public class UserServiceTest {
 
     @Test
     void shouldDeleteUserWhenPasswordMatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserDeleteRequest request = new UserDeleteRequest("password");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "encoded-password")).thenReturn(true);
 
         userService.delete(1L, request);
@@ -240,10 +236,9 @@ public class UserServiceTest {
 
     @Test
     void shouldRejectUserDeleteWhenPasswordMismatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         UserDeleteRequest request = new UserDeleteRequest("wrong-password");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong-password", "encoded-password")).thenReturn(false);
 
         assertThrows(PasswordMismatchException.class,

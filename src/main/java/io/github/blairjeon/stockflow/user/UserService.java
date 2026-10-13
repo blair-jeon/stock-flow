@@ -4,6 +4,7 @@ import io.github.blairjeon.stockflow.user.dto.*;
 import io.github.blairjeon.stockflow.user.exception.DuplicateLoginIdException;
 import io.github.blairjeon.stockflow.user.exception.PasswordMismatchException;
 import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;

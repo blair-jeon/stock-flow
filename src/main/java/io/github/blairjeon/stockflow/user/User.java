@@ -1,5 +1,6 @@
 package io.github.blairjeon.stockflow.user;
 
+import io.github.blairjeon.stockflow.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,7 +18,7 @@ import java.util.Objects;
                 columnNames = "login_id"
         )
 )
-public class User {
+public class User extends BaseTimeEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 

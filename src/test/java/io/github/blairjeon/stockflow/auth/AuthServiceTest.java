@@ -7,7 +7,7 @@ import io.github.blairjeon.stockflow.auth.exception.InvalidCredentialsException;
 import io.github.blairjeon.stockflow.security.jwt.InvalidTokenException;
 import io.github.blairjeon.stockflow.security.jwt.JwtProvider;
 import io.github.blairjeon.stockflow.user.User;
-import io.github.blairjeon.stockflow.user.UserRepository;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import io.github.blairjeon.stockflow.user.UserRole;
 import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -25,23 +25,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class AuthServiceTest {
-    @Mock
-    private UserRepository userRepository;
+class AuthServiceTest {
+    @Mock private JwtProvider jwtProvider;
+    @Mock private UserRepository userRepository;
+    @Mock private PasswordEncoder passwordEncoder;
+    @InjectMocks private AuthService authService;
 
-    @Mock
-    private PasswordEncoder passwordEncoder;
+    private User existingUser(){
+        User user = User.create("alice", "encoded-password", "Alice");
+        ReflectionTestUtils.setField(user, "id", 1L);
 
-    @Mock
-    private JwtProvider jwtProvider;
-
-    @InjectMocks
-    private AuthService authService;
+        return user;
+    }
 
     @Test
     void shouldReturnTokensWhenCredentialsAreValid(){
-        User user = User.create("alice", "encoded-password", "Alice");
-        ReflectionTestUtils.setField(user, "id", 1L);
+        User user = existingUser();
         LoginRequest request = new LoginRequest("alice", "password");
 
         when(userRepository.findByLoginId("alice")).thenReturn(Optional.of(user));
@@ -65,7 +64,7 @@ public class AuthServiceTest {
 
     @Test
     void shouldRejectLoginWhenPasswordMismatches(){
-        User user = User.create("alice", "encoded-password", "Alice");
+        User user = existingUser();
         LoginRequest request = new LoginRequest("alice", "wrong-password");
 
         when(userRepository.findByLoginId("alice")).thenReturn(Optional.of(user));
@@ -94,8 +93,7 @@ public class AuthServiceTest {
 
     @Test
     void shouldRefreshAccessTokenWhenRefreshTokenIsValid(){
-        User user = User.create("alice", "encoded-password", "Alice");
-        ReflectionTestUtils.setField(user, "id", 1L);
+        User user = existingUser();
         RefreshTokenRequest request = new RefreshTokenRequest("refresh-token");
 
         when(jwtProvider.parseRefreshToken("refresh-token")).thenReturn(1L);
