@@ -105,6 +105,7 @@ public class OrderService {
     public void cancel(Long userId, Long orderId){
         Order order = orderRepository.findByUserIdAndId(userId, orderId)
                 .orElseThrow(OrderNotFoundException::new);
+
         order.cancel();
 
         List<OrderItem> orderItems = orderItemRepository.findAllByOrderId(orderId);

@@ -74,15 +74,15 @@ public class Product extends BaseTimeEntity {
         this.stockQuantity = Objects.requireNonNull(stockQuantity);
     }
 
+    public void updateStatus(ProductStatus productStatus){
+        this.productStatus = Objects.requireNonNull(productStatus);
+    }
+
     public void increaseStockQuantity(Quantity quantity){
         this.stockQuantity = this.stockQuantity.add(quantity);
     }
 
     public void decreaseStockQuantity(Quantity quantity){
         this.stockQuantity = this.stockQuantity.subtract(quantity);
-    }
-
-    public void updateStatus(ProductStatus productStatus){
-        this.productStatus = Objects.requireNonNull(productStatus);
     }
 }

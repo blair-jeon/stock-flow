@@ -63,7 +63,10 @@ public class Order extends BaseTimeEntity {
     }
 
     public void cancel(){
-        // Status 체크해야함, 중복취소 현재 가능
+        if(!this.status.allowsTransitionTo(OrderStatus.CANCELED)) {
+            // Error
+        }
         this.status = OrderStatus.CANCELED;
     }
+
 }

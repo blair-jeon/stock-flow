@@ -75,7 +75,9 @@ public class ProductService {
     @Transactional
     public void delete(Long userId, Long productId){
         Product product = getProductByUserIdAndId(userId, productId);
-        productRepository.delete(product);
+
+        product.updateStockQuantity(new StockQuantity(0));
+        product.updateStatus(ProductStatus.DISCONTINUED);
     }
 
     private Product getProductByUserIdAndId(Long userId, Long productId){
