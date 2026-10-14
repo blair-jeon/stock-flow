@@ -1,15 +1,14 @@
 package io.github.blairjeon.stockflow.auth;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.auth.dto.LoginRequest;
 import io.github.blairjeon.stockflow.auth.dto.RefreshTokenRequest;
 import io.github.blairjeon.stockflow.auth.dto.TokenResponse;
-import io.github.blairjeon.stockflow.auth.exception.InvalidCredentialsException;
-import io.github.blairjeon.stockflow.security.jwt.InvalidTokenException;
 import io.github.blairjeon.stockflow.security.jwt.JwtProvider;
 import io.github.blairjeon.stockflow.user.User;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import io.github.blairjeon.stockflow.user.UserRole;
-import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -71,7 +70,9 @@ class AuthServiceTest {
         when(passwordEncoder.matches("wrong-password", "encoded-password"))
                 .thenReturn(false);
 
-        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.LOGIN_FAILED,
+                assertThrows(BusinessException.class,
+                        () -> authService.login(request)).getErrorCode());
 
         verify(userRepository).findByLoginId("alice");
         verify(passwordEncoder).matches("wrong-password", "encoded-password");
@@ -84,7 +85,9 @@ class AuthServiceTest {
 
         when(userRepository.findByLoginId("alice")).thenReturn(Optional.empty());
 
-        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+        assertEquals(ErrorCode.LOGIN_FAILED,
+                assertThrows(BusinessException.class,
+                        () -> authService.login(request)).getErrorCode());
 
         verify(userRepository).findByLoginId("alice");
         verifyNoInteractions(passwordEncoder);
@@ -113,9 +116,11 @@ class AuthServiceTest {
     void shouldNotIssueAccessTokenWhenRefreshTokenParsingFails(){
         RefreshTokenRequest request = new RefreshTokenRequest("refresh-token");
 
-        when(jwtProvider.parseRefreshToken("refresh-token")).thenThrow(InvalidTokenException.class);
+        when(jwtProvider.parseRefreshToken("refresh-token")).thenThrow(new BusinessException(ErrorCode.INVALID_TOKEN));
 
-        assertThrows(InvalidTokenException.class, () -> authService.refreshAccessToken(request));
+        assertEquals(ErrorCode.INVALID_TOKEN,
+                assertThrows(BusinessException.class,
+                        () -> authService.refreshAccessToken(request)).getErrorCode());
 
         verifyNoInteractions(userRepository);
         verify(jwtProvider, never()).createAccessToken(any(), any());
@@ -128,7 +133,9 @@ class AuthServiceTest {
         when(jwtProvider.parseRefreshToken("refresh-token")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> authService.refreshAccessToken(request));
+        assertEquals(ErrorCode.TOKEN_USER_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> authService.refreshAccessToken(request)).getErrorCode());
 
         verify(jwtProvider).parseRefreshToken("refresh-token");
         verify(userRepository).findById(1L);

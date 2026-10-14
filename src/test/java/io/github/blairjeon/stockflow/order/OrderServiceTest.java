@@ -1,19 +1,15 @@
 package io.github.blairjeon.stockflow.order;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;
 import io.github.blairjeon.stockflow.order.dto.OrderItemRequest;
-import io.github.blairjeon.stockflow.order.exception.DuplicateOrderItemException;
-import io.github.blairjeon.stockflow.order.exception.OrderPermissionDeniedException;
 import io.github.blairjeon.stockflow.order.repository.OrderItemRepository;
 import io.github.blairjeon.stockflow.order.repository.OrderRepository;
 import io.github.blairjeon.stockflow.product.Product;
-import io.github.blairjeon.stockflow.product.ProductStatus;
-import io.github.blairjeon.stockflow.product.exception.ProductNotFoundException;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
 import io.github.blairjeon.stockflow.product.StockQuantity;
-import io.github.blairjeon.stockflow.user.repository.UserRepository;
-import io.github.blairjeon.stockflow.user.UserRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,7 +28,6 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest{
-    @Mock private UserRepository userRepository;
     @Mock private ProductRepository productRepository;
     @Mock private OrderRepository orderRepository;
     @Mock private OrderItemRepository orderItemRepository;
@@ -65,15 +60,16 @@ class OrderServiceTest{
                 )
         );
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.USER))
-                .thenReturn(true);
-        when(productRepository.findAllByIdInAndProductStatus(List.of(10L, 20L), ProductStatus.ACTIVE))
+        when(productRepository.findAllById(List.of(10L, 20L)))
                 .thenReturn(products);
+        when(productRepository.decreaseStock(10L, 2, new BigDecimal("99.99")))
+                .thenReturn(1);
+        when(productRepository.decreaseStock(20L, 4, new BigDecimal("39.99")))
+                .thenReturn(1);
 
         orderService.create(1L, request);
 
-        verify(userRepository).existsByIdAndUserRole(1L, UserRole.USER);
-        verify(productRepository).findAllByIdInAndProductStatus(List.of(10L, 20L), ProductStatus.ACTIVE);
+        verify(productRepository).findAllById(List.of(10L, 20L));
         verify(orderRepository).save(orderCaptor.capture());
         verify(orderItemRepository).saveAll(itemCaptor.capture());
 
@@ -99,19 +95,6 @@ class OrderServiceTest{
     }
 
     @Test
-    void shouldRejectOrderWhenUserIsNotAuthorized(){
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.USER))
-                .thenReturn(false);
-
-        assertThrows(OrderPermissionDeniedException.class,
-                () -> orderService.create(1L, null));
-
-        verifyNoInteractions(productRepository);
-        verifyNoInteractions(orderRepository);
-        verifyNoInteractions(orderItemRepository);
-    }
-
-    @Test
     void shouldRejectOrderWhenDuplicateProductsExists(){
         OrderCreateRequest request = new OrderCreateRequest(
                 List.of(
@@ -120,11 +103,9 @@ class OrderServiceTest{
                 )
         );
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.USER))
-                .thenReturn(true);
-
-        assertThrows(DuplicateOrderItemException.class,
-                () -> orderService.create(1L, request));
+        assertEquals(ErrorCode.DUPLICATE_ORDER_ITEM,
+                assertThrows(BusinessException.class,
+                        () -> orderService.create(1L, request)).getErrorCode());
 
         verifyNoInteractions(productRepository);
         verifyNoInteractions(orderRepository);
@@ -140,13 +121,14 @@ class OrderServiceTest{
                 )
         );
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.USER))
-                .thenReturn(true);
-        when(productRepository.findAllByIdInAndProductStatus(List.of(10L, 20L), ProductStatus.ACTIVE))
+        when(productRepository.findAllById(List.of(10L, 20L)))
                 .thenReturn(List.of(product(10L, "Keyboard", "99.99", 10)));
+        when(productRepository.decreaseStock(10L, 2, new BigDecimal("99.99")))
+                .thenReturn(1);
 
-        assertThrows(ProductNotFoundException.class,
-                () -> orderService.create(1L, request));
+        assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> orderService.create(1L, request)).getErrorCode());
 
         verifyNoInteractions(orderRepository);
         verifyNoInteractions(orderItemRepository);
@@ -162,13 +144,14 @@ class OrderServiceTest{
                 )
         );
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.USER))
-                .thenReturn(true);
-        when(productRepository.findAllByIdInAndProductStatus(List.of(10L, 20L), ProductStatus.ACTIVE))
+        when(productRepository.findAllById(List.of(10L, 20L)))
                 .thenReturn(products);
+        when(productRepository.decreaseStock(10L, 2, new BigDecimal("99.99")))
+                .thenReturn(1);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> orderService.create(1L, request));
+        assertEquals(ErrorCode.NOT_ENOUGH_STOCK,
+                assertThrows(BusinessException.class,
+                        () -> orderService.create(1L, request)).getErrorCode());
 
         verifyNoInteractions(orderRepository);
         verifyNoInteractions(orderItemRepository);

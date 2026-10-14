@@ -1,9 +1,8 @@
 package io.github.blairjeon.stockflow.user;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.user.dto.*;
-import io.github.blairjeon.stockflow.user.exception.DuplicateLoginIdException;
-import io.github.blairjeon.stockflow.user.exception.PasswordMismatchException;
-import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
@@ -64,10 +63,9 @@ class UserServiceTest {
         when(userRepository.existsByLoginId("alice"))
                 .thenReturn(true);
 
-        assertThrows(
-                DuplicateLoginIdException.class,
-                () -> userService.create(request)
-        );
+        assertEquals(ErrorCode.LOGIN_ID_TAKEN,
+                assertThrows(BusinessException.class,
+                        () -> userService.create(request)).getErrorCode());
 
         verify(userRepository, never()).saveAndFlush(any(User.class));
         verifyNoInteractions(passwordEncoder);
@@ -88,7 +86,9 @@ class UserServiceTest {
         when(passwordEncoder.encode("test-password")).thenReturn("encoded-password");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(exception);
 
-        assertThrows(DuplicateLoginIdException.class, ()->userService.create(request));
+        assertEquals(ErrorCode.LOGIN_ID_TAKEN,
+                assertThrows(BusinessException.class,
+                        ()->userService.create(request)).getErrorCode());
 
         verify(userRepository).existsByLoginId("alice");
         verify(passwordEncoder).encode("test-password");
@@ -111,10 +111,9 @@ class UserServiceTest {
     void shouldThrowUserNotFoundWhenUserDoesNotExist(){
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(
-                UserNotFoundException.class,
-                () -> userService.get(1L)
-        );
+        assertEquals(ErrorCode.TOKEN_USER_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> userService.get(1L)).getErrorCode());
 
         verify(userRepository).findById(1L);
     }
@@ -152,8 +151,9 @@ class UserServiceTest {
         when(passwordEncoder.matches("old-wrong-password", "encoded-password"))
                 .thenReturn(false);
 
-        assertThrows(PasswordMismatchException.class,
-                () -> userService.updatePassword(1L, request));
+        assertEquals(ErrorCode.WRONG_PASSWORD,
+                assertThrows(BusinessException.class,
+                        () -> userService.updatePassword(1L, request)).getErrorCode());
 
         verify(passwordEncoder).matches("old-wrong-password", "encoded-password");
         verify(passwordEncoder, never()).encode(any(String.class));
@@ -169,8 +169,9 @@ class UserServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class,
-                () -> userService.updatePassword(1L, request));
+        assertEquals(ErrorCode.TOKEN_USER_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> userService.updatePassword(1L, request)).getErrorCode());
 
         verify(userRepository).findById(1L);
         verifyNoInteractions(passwordEncoder);
@@ -199,8 +200,9 @@ class UserServiceTest {
         when(passwordEncoder.matches("wrong-password", "encoded-password"))
                 .thenReturn(false);
 
-        assertThrows(PasswordMismatchException.class,
-                () -> userService.updateDisplayName(1L, request));
+        assertEquals(ErrorCode.WRONG_PASSWORD,
+                assertThrows(BusinessException.class,
+                        () -> userService.updateDisplayName(1L, request)).getErrorCode());
 
         verify(userRepository).findById(1L);
         verify(passwordEncoder).matches("wrong-password", "encoded-password");
@@ -213,8 +215,9 @@ class UserServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class,
-                () -> userService.updateDisplayName(1L, request));
+        assertEquals(ErrorCode.TOKEN_USER_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> userService.updateDisplayName(1L, request)).getErrorCode());
 
         verify(userRepository).findById(1L);
         verifyNoInteractions(passwordEncoder);
@@ -241,8 +244,9 @@ class UserServiceTest {
 
         when(passwordEncoder.matches("wrong-password", "encoded-password")).thenReturn(false);
 
-        assertThrows(PasswordMismatchException.class,
-                () -> userService.delete(1L, request));
+        assertEquals(ErrorCode.WRONG_PASSWORD,
+                assertThrows(BusinessException.class,
+                        () -> userService.delete(1L, request)).getErrorCode());
 
         verify(userRepository).findById(1L);
         verify(passwordEncoder).matches("wrong-password", "encoded-password");
@@ -255,8 +259,9 @@ class UserServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class,
-                () -> userService.delete(1L, request));
+        assertEquals(ErrorCode.TOKEN_USER_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> userService.delete(1L, request)).getErrorCode());
 
         verify(userRepository).findById(1L);
         verifyNoInteractions(passwordEncoder);

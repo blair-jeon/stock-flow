@@ -1,5 +1,7 @@
 package io.github.blairjeon.stockflow.security.jwt;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.user.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -72,7 +74,7 @@ public class JwtProvider {
         TokenType actualType = TokenType.valueOf(claims.get("type", String.class));
 
         if(expectedType!=actualType){
-            throw new InvalidTokenException();
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
         }
 
         return claims;

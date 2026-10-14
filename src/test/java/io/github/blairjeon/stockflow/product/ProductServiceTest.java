@@ -1,11 +1,11 @@
 package io.github.blairjeon.stockflow.product;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.product.dto.ProductCreateRequest;
 import io.github.blairjeon.stockflow.product.dto.ProductResponse;
 import io.github.blairjeon.stockflow.product.dto.ProductUpdateRequest;
-import io.github.blairjeon.stockflow.product.exception.ProductNotFoundException;
-import io.github.blairjeon.stockflow.product.exception.SellerRequiredException;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import io.github.blairjeon.stockflow.user.UserRole;
@@ -74,8 +74,9 @@ class ProductServiceTest {
         when(userRepository.existsByIdAndUserRole(1L, UserRole.SELLER))
                 .thenReturn(false);
 
-        assertThrows(SellerRequiredException.class,
-                () -> productService.create(1L, request));
+        assertEquals(ErrorCode.SELLER_ONLY,
+                assertThrows(BusinessException.class,
+                        () -> productService.create(1L, request)).getErrorCode());
 
         verify(userRepository).existsByIdAndUserRole(1L, UserRole.SELLER);
         verifyNoInteractions(productRepository);
@@ -107,8 +108,9 @@ class ProductServiceTest {
     void shouldThrowExceptionWhenProductNotFound(){
         when(productRepository.findById(10L)).thenReturn(Optional.empty());
 
-        assertThrows(ProductNotFoundException.class,
-                () -> productService.getProduct(10L));
+        assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> productService.getProduct(10L)).getErrorCode());
 
         verify(productRepository).findById(10L);
     }
@@ -215,8 +217,9 @@ class ProductServiceTest {
         when(productRepository.findByUserIdAndId(1L, 10L))
                 .thenReturn(Optional.empty());
 
-        assertThrows(ProductNotFoundException.class,
-                () -> productService.update(1L, 10L, request));
+        assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> productService.update(1L, 10L, request)).getErrorCode());
 
         verify(productRepository).findByUserIdAndId(1L, 10L);
         verify(productRepository, never()).save(any());
@@ -237,7 +240,6 @@ class ProductServiceTest {
         productService.delete(1L, 10L);
 
         verify(productRepository).findByUserIdAndId(1L, 10L);
-        verify(productRepository).delete(product);
     }
 
     @Test
@@ -245,8 +247,9 @@ class ProductServiceTest {
         when(productRepository.findByUserIdAndId(1L, 10L))
                 .thenReturn(Optional.empty());
 
-        assertThrows(ProductNotFoundException.class,
-                () -> productService.delete(1L, 10L));
+        assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
+                assertThrows(BusinessException.class,
+                        () -> productService.delete(1L, 10L)).getErrorCode());
 
         verify(productRepository).findByUserIdAndId(1L, 10L);
         verify(productRepository, never()).delete(any());

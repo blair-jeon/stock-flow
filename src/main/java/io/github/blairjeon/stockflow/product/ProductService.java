@@ -1,14 +1,14 @@
 package io.github.blairjeon.stockflow.product;
 
+import io.github.blairjeon.stockflow.ErrorCode;
 import io.github.blairjeon.stockflow.common.Money;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.product.dto.ProductCreateRequest;
 import io.github.blairjeon.stockflow.product.dto.ProductResponse;
 import io.github.blairjeon.stockflow.product.dto.ProductUpdateRequest;
-import io.github.blairjeon.stockflow.product.exception.ProductNotFoundException;
-import io.github.blairjeon.stockflow.product.exception.SellerRequiredException;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
-import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import io.github.blairjeon.stockflow.user.UserRole;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -25,7 +25,7 @@ public class ProductService {
     @Transactional
     public void create(Long userId, ProductCreateRequest request){
         if(!userRepository.existsByIdAndUserRole(userId, UserRole.SELLER)) {
-            throw new SellerRequiredException();
+            throw new BusinessException(ErrorCode.SELLER_ONLY);
         }
 
         Product product = Product.create(
@@ -40,7 +40,8 @@ public class ProductService {
 
     public ProductResponse getProduct(Long productId){
         Product product = productRepository.findById(productId)
-                .orElseThrow(ProductNotFoundException::new);
+                .orElseThrow(
+                        () -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         return ProductResponse.from(product);
     }
 
@@ -82,6 +83,6 @@ public class ProductService {
 
     private Product getProductByUserIdAndId(Long userId, Long productId){
         return productRepository.findByUserIdAndId(userId, productId)
-                .orElseThrow(ProductNotFoundException::new);
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 }

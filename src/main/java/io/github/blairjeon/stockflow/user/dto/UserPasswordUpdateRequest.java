@@ -3,10 +3,12 @@ package io.github.blairjeon.stockflow.user.dto;
 import jakarta.validation.constraints.NotBlank;
 
 public record UserPasswordUpdateRequest(
-        @NotBlank
+
+        @NotBlank(message = "Current password is required.")
         String oldPassword,
 
-        @NotBlank
+        @NotBlank(message = "New password is required.")
         String newPassword
+
 ) {
 }

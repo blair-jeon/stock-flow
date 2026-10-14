@@ -7,15 +7,15 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 public record ProductCreateRequest(
-        @NotBlank
+        @NotBlank(message = "Product name is required.")
         String name,
 
-        @NotNull
-        @PositiveOrZero
+        @NotNull(message = "Price is required.")
+        @PositiveOrZero(message = "Price must be zero or greater.")
         BigDecimal price,
 
-        @NotNull
-        @PositiveOrZero
+        @NotNull(message = "Stock quantity is required.")
+        @PositiveOrZero(message = "Stock quantity must be zero or greater.")
         Integer stockQuantity
 ) {
 }

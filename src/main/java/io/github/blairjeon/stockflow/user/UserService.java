@@ -1,9 +1,8 @@
 package io.github.blairjeon.stockflow.user;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.user.dto.*;
-import io.github.blairjeon.stockflow.user.exception.DuplicateLoginIdException;
-import io.github.blairjeon.stockflow.user.exception.PasswordMismatchException;
-import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -22,7 +21,7 @@ public class UserService {
     @Transactional
     public void create(UserCreateRequest request){
         if(userRepository.existsByLoginId(request.login())){
-            throw new DuplicateLoginIdException();
+            throw new BusinessException(ErrorCode.LOGIN_ID_TAKEN);
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
@@ -34,7 +33,7 @@ public class UserService {
         } catch (DataIntegrityViolationException e) {
             if(e.getCause() instanceof ConstraintViolationException cve)
                 if("uk_users_loginId".equals(cve.getConstraintName())){
-                    throw new DuplicateLoginIdException();
+                    throw new BusinessException(ErrorCode.LOGIN_ID_TAKEN);
                 }
             throw e;
         }
@@ -72,12 +71,14 @@ public class UserService {
 
     private User getUserById(Long userId){
         return userRepository.findById(userId)
-                .orElseThrow(UserNotFoundException::new);
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.TOKEN_USER_NOT_FOUND)
+                );
     }
 
     private void verifyPassword(String rawPassword, String encodedPassword){
         if(!passwordEncoder.matches(rawPassword, encodedPassword)){
-            throw new PasswordMismatchException();
+            throw new BusinessException(ErrorCode.WRONG_PASSWORD);
         }
     }
 }

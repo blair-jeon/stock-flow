@@ -1,16 +1,16 @@
 package io.github.blairjeon.stockflow.order;
 
+import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;
 import io.github.blairjeon.stockflow.order.dto.OrderItemRequest;
 import io.github.blairjeon.stockflow.order.dto.OrderResponse;
 import io.github.blairjeon.stockflow.order.dto.OrderSummaryResponse;
-import io.github.blairjeon.stockflow.order.exception.OrderNotFoundException;
 import io.github.blairjeon.stockflow.order.repository.OrderItemRepository;
 import io.github.blairjeon.stockflow.order.repository.OrderRepository;
 import io.github.blairjeon.stockflow.product.Product;
 import io.github.blairjeon.stockflow.product.ProductStatus;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
-import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -30,13 +30,12 @@ import java.util.stream.Collectors;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final UserRepository userRepository;
     private final ProductRepository productRepository;
 
     @Transactional
-    public void create(Long userId, OrderCreateRequest request){
+    public void create(Long userId, OrderCreateRequest request) {
         List<OrderItemRequest> sortedRequest = request.items().stream()
-                .sorted()
+                .sorted(Comparator.comparing(OrderItemRequest::productId))
                 .toList();
 
         List<Long> productIds = sortedRequest.stream()
@@ -44,50 +43,78 @@ public class OrderService {
                 .distinct()
                 .toList();
 
-        if(sortedRequest.size()!=productIds.size()){
-            throw new RuntimeException("오류오류오류/아직exception종류미정");
+        if (sortedRequest.size() != productIds.size()) {
+            throw new BusinessException(ErrorCode.DUPLICATE_ORDER_ITEM);
         }
 
-        Map<Long, Product> productsById = productRepository.findAllByIdInAndProductStatus(productIds, ProductStatus.ACTIVE)
-                .stream()
-                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        Map<Long, Product> productsById =
+                productRepository.findAllById(productIds).stream()
+                        .collect(Collectors.toMap(
+                                Product::getId,
+                                Function.identity()
+                        ));
 
         Order order = Order.create(userId);
         List<OrderItem> items = new ArrayList<>();
 
-        for(OrderItemRequest itemRequest : sortedRequest){
+        for (OrderItemRequest itemRequest : sortedRequest) {
             Product product = productsById.get(itemRequest.productId());
-            Quantity quantity = new Quantity(itemRequest.quantity());
 
-            if(product==null){
-                throw new RuntimeException("오류오류오류/exception종류미정");
+            if (product == null) {
+                throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
             }
 
-            int updateRows = productRepository.decreaseStock(
+            if (product.getProductStatus() != ProductStatus.ACTIVE) {
+                throw new BusinessException(ErrorCode.PRODUCT_NOT_FOR_SALE);
+            }
+
+            Quantity quantity = new Quantity(itemRequest.quantity());
+
+            if (product.getStockQuantity().value() < quantity.value()) {
+                throw new BusinessException(ErrorCode.NOT_ENOUGH_STOCK);
+            }
+
+            int updatedRows = productRepository.decreaseStock(
                     product.getId(),
                     quantity.value(),
                     product.getPrice().amount()
             );
 
-            if(updateRows!=1){
-                throw new RuntimeException("미정미정미정");
+            if (updatedRows == 0) {
+                throw new BusinessException(ErrorCode.ORDER_CONFLICT);
             }
 
-            OrderItem item = OrderItem.create(order, product.getId(), product.getName(), product.getPrice(), quantity);
+            if (updatedRows != 1) {
+                throw new IllegalStateException(
+                        "Unexpected stock update count: " + updatedRows
+                );
+            }
+
+            OrderItem item = OrderItem.create(
+                    order,
+                    product.getId(),
+                    product.getName(),
+                    product.getPrice(),
+                    quantity
+            );
 
             order.addItem(item);
             items.add(item);
         }
 
-        orderItemRepository.saveAll(items);
+        // 주문을 먼저 저장한 뒤, 그 주문을 참조하는 항목을 저장
         orderRepository.save(order);
+        orderItemRepository.saveAll(items);
     }
 
-    public OrderResponse getOrder(Long userId, Long orderId){
+    public OrderResponse getOrder(Long userId, Long orderId) {
         Order order = orderRepository.findByUserIdAndId(userId, orderId)
-                .orElseThrow(OrderNotFoundException::new);
+                .orElseThrow(
+                        () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND)
+                );
 
         List<OrderItem> orderItems = orderItemRepository.findAllByOrderId(orderId);
+
         return OrderResponse.from(order, orderItems);
     }
 
@@ -100,7 +127,7 @@ public class OrderService {
     @Transactional
     public void cancel(Long userId, Long orderId){
         Order order = orderRepository.findWithLockByUserIdAndId(userId, orderId)
-                .orElseThrow(OrderNotFoundException::new);
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
         order.cancel();
 
@@ -109,13 +136,20 @@ public class OrderService {
                 .toList();
 
         if(items.isEmpty()){
-            throw new RuntimeException("아이템없음/오류");
+            throw new IllegalStateException(
+                    "Order has no items. orderId=" + orderId
+            );
         }
 
         for(OrderItem item:items){
             int updateRows = productRepository.increaseStock(item.getProductId(), item.getQuantity().value());
+
             if(updateRows!=1){
-                throw new RuntimeException("dhfbdfdafsaf");
+                throw new IllegalStateException(
+                        "Stock restore failed. orderId=" + orderId
+                                + ", productId=" + item.getProductId()
+                                + ", updatedRows=" + updateRows
+                );
             }
         }
     }

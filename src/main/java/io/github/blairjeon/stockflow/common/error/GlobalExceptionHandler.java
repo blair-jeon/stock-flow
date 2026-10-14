@@ -1,65 +1,42 @@
 package io.github.blairjeon.stockflow.common.error;
 
-import io.github.blairjeon.stockflow.auth.exception.InvalidCredentialsException;
-import io.github.blairjeon.stockflow.order.exception.DuplicateOrderItemException;
-import io.github.blairjeon.stockflow.order.exception.OrderNotFoundException;
-import io.github.blairjeon.stockflow.order.exception.OrderPermissionDeniedException;
-import io.github.blairjeon.stockflow.product.exception.ProductNotFoundException;
-import io.github.blairjeon.stockflow.product.exception.SellerRequiredException;
-import io.github.blairjeon.stockflow.security.jwt.InvalidTokenException;
-import io.github.blairjeon.stockflow.user.exception.DuplicateLoginIdException;
-import io.github.blairjeon.stockflow.user.exception.PasswordMismatchException;
-import io.github.blairjeon.stockflow.user.exception.UserNotFoundException;
-import org.springframework.http.HttpStatus;
+import io.github.blairjeon.stockflow.ErrorCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.List;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessException(
+            BusinessException e
+    ){
+        ErrorCode errorCode = e.getErrorCode();
 
-    @ExceptionHandler({
-            PasswordMismatchException.class
-    })
-    public ResponseEntity<ErrorResponse> handleBadRequest(RuntimeException e){
-        ErrorResponse response = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ErrorResponse.from(errorCode));
     }
 
-    @ExceptionHandler({
-            SellerRequiredException.class,
-            OrderPermissionDeniedException.class
-    })
-    public ResponseEntity<ErrorResponse> handleForbidden(RuntimeException e){
-        ErrorResponse response = new ErrorResponse(HttpStatus.FORBIDDEN.value(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-    }
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidationException(
+            MethodArgumentNotValidException e
+    ){
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT;
 
-    @ExceptionHandler({
-            InvalidCredentialsException.class,
-            InvalidTokenException.class
-    })
-    public ResponseEntity<ErrorResponse> handleUnauthorized(RuntimeException e){
-        ErrorResponse response = new ErrorResponse(HttpStatus.UNAUTHORIZED.value(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
+        List<FieldErrorResponse> fieldErrors = e.getFieldErrors()
+                .stream()
+                .map(error -> new FieldErrorResponse(
+                        error.getField(),
+                        error.getDefaultMessage()
+                ))
+                .toList();
 
-    @ExceptionHandler({
-            UserNotFoundException.class,
-            ProductNotFoundException.class,
-            OrderNotFoundException.class,
-    })
-    public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException e){
-        ErrorResponse response = new ErrorResponse(HttpStatus.NOT_FOUND.value(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-    }
-
-    @ExceptionHandler({
-            DuplicateLoginIdException.class,
-            DuplicateOrderItemException.class
-    })
-    public ResponseEntity<ErrorResponse> handleConflict(RuntimeException e){
-        ErrorResponse response = new ErrorResponse(HttpStatus.CONFLICT.value(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ErrorResponse.from(errorCode, fieldErrors));
     }
 }
