@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.order;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;

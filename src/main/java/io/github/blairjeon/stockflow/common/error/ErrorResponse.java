@@ -1,7 +1,5 @@
 package io.github.blairjeon.stockflow.common.error;
 
-import io.github.blairjeon.stockflow.ErrorCode;
-
 import java.util.List;
 
 public record ErrorResponse(

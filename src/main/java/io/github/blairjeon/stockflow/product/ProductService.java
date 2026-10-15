@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.product;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.product.dto.ProductCreateRequest;
@@ -24,7 +24,7 @@ public class ProductService {
 
     @Transactional
     public void create(Long userId, ProductCreateRequest request){
-        if(!userRepository.existsByIdAndUserRole(userId, UserRole.SELLER)) {
+        if(!userRepository.existsByIdAndRole(userId, UserRole.SELLER)) {
             throw new BusinessException(ErrorCode.SELLER_ONLY);
         }
 
@@ -52,9 +52,13 @@ public class ProductService {
 
     @Transactional
     public void update(Long userId, Long productId, ProductUpdateRequest request){
-        Product product = getProductByUserIdAndId(userId, productId);
+        Product product = productRepository.findWithLockByUserIdAndId(userId, productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
-        if(request.name()!=null){
+        if (request.name() != null) {
+            if (request.name().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT);
+            }
             product.updateName(request.name());
         }
 
@@ -69,20 +73,12 @@ public class ProductService {
         if(request.productStatus()!=null){
             product.updateStatus(request.productStatus());
         }
-
-        productRepository.save(product);
     }
 
     @Transactional
     public void delete(Long userId, Long productId){
-        Product product = getProductByUserIdAndId(userId, productId);
-
-        product.updateStockQuantity(new StockQuantity(0));
+        Product product = productRepository.findWithLockByUserIdAndId(userId, productId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         product.updateStatus(ProductStatus.DISCONTINUED);
-    }
-
-    private Product getProductByUserIdAndId(Long userId, Long productId){
-        return productRepository.findByUserIdAndId(userId, productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 }

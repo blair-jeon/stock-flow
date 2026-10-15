@@ -3,7 +3,6 @@ package io.github.blairjeon.stockflow.user.dto;
 import jakarta.validation.constraints.NotBlank;
 
 public record UserCreateRequest(
-
         @NotBlank(message = "Login ID is required.")
         String login,
 
@@ -12,6 +11,5 @@ public record UserCreateRequest(
 
         @NotBlank(message = "Display name is required.")
         String displayName
-
 ) {
 }

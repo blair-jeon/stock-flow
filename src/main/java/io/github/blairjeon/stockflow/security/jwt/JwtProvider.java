@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.security.jwt;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.user.UserRole;
 import io.jsonwebtoken.Claims;
@@ -61,8 +61,6 @@ public class JwtProvider {
         Claims claims = parseAndValidate(token, TokenType.REFRESH);
         return Long.valueOf(claims.getSubject());
     }
-
-    // ======
 
     private Claims parseAndValidate(String token, TokenType expectedType){
         Claims claims =  Jwts.parser()

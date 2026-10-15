@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.auth;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.auth.dto.LoginRequest;
 import io.github.blairjeon.stockflow.auth.dto.RefreshTokenRequest;
 import io.github.blairjeon.stockflow.auth.dto.TokenResponse;
@@ -29,7 +29,7 @@ public class AuthService {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
-        String accessToken = jwtProvider.createAccessToken(user.getId(), user.getUserRole());
+        String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole());
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
         return new TokenResponse(accessToken, refreshToken);
@@ -40,6 +40,6 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_USER_NOT_FOUND));
 
-        return jwtProvider.createAccessToken(user.getId(), user.getUserRole());
+        return jwtProvider.createAccessToken(user.getId(), user.getRole());
     }
 }

@@ -9,6 +9,6 @@ public record UserResponse(
         UserRole userRole
 ) {
     public static UserResponse from(User user){
-        return new UserResponse(user.getLoginId(), user.getDisplayName(), user.getUserRole());
+        return new UserResponse(user.getLoginId(), user.getDisplayName(), user.getRole());
     }
 }

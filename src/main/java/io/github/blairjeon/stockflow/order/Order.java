@@ -2,6 +2,8 @@ package io.github.blairjeon.stockflow.order;
 
 import io.github.blairjeon.stockflow.common.BaseTimeEntity;
 import io.github.blairjeon.stockflow.common.Money;
+import io.github.blairjeon.stockflow.common.error.BusinessException;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -64,7 +66,7 @@ public class Order extends BaseTimeEntity {
 
     public void cancel(){
         if(!this.status.allowsTransitionTo(OrderStatus.CANCELED)) {
-            // Error
+            throw new BusinessException(ErrorCode.CANNOT_CANCEL_ORDER);
         }
         this.status = OrderStatus.CANCELED;
     }

@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.order;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;
 import io.github.blairjeon.stockflow.order.dto.OrderItemRequest;
@@ -64,7 +64,7 @@ public class OrderService {
                 throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
             }
 
-            if (product.getProductStatus() != ProductStatus.ACTIVE) {
+            if (product.getStatus() != ProductStatus.ACTIVE) {
                 throw new BusinessException(ErrorCode.PRODUCT_NOT_FOR_SALE);
             }
 

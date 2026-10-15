@@ -1,6 +1,5 @@
 package io.github.blairjeon.stockflow.common.error;
 
-import io.github.blairjeon.stockflow.ErrorCode;
 import lombok.Getter;
 
 @Getter

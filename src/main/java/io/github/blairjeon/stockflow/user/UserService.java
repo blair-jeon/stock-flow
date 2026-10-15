@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.user;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.user.dto.*;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;

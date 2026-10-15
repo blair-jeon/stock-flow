@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.auth;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.auth.dto.LoginRequest;
 import io.github.blairjeon.stockflow.auth.dto.RefreshTokenRequest;

@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
@@ -33,13 +34,18 @@ public class User extends BaseTimeEntity {
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private UserRole userRole;
+    private UserRole role;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
 
     private User(String loginId, String passwordHash, String displayName){
         this.loginId = Objects.requireNonNull(loginId);
         this.passwordHash = Objects.requireNonNull(passwordHash);
         this.displayName = Objects.requireNonNull(displayName);
-        this.userRole = UserRole.USER;
+        this.role = UserRole.USER;
+        this.status = UserStatus.ACTIVE;
     }
 
     public static User create(String loginId, String passwordHash, String displayName){

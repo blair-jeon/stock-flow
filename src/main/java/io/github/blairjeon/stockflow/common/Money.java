@@ -14,8 +14,6 @@ public record Money(BigDecimal amount) {
         if(amount.signum()<0){
             throw new IllegalArgumentException("Amount must not be negative");
         }
-
-        amount = amount.setScale(2, RoundingMode.UNNECESSARY);
     }
 
     public Money add(Money other){

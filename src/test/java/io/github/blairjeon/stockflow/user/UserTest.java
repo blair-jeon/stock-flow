@@ -13,6 +13,6 @@ class UserTest {
                 "Alice"
         );
 
-        assertEquals(UserRole.USER, user.getUserRole());
+        assertEquals(UserRole.USER, user.getRole());
     }
 }

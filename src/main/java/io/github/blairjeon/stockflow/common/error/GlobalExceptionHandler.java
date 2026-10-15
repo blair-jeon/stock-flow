@@ -1,6 +1,5 @@
 package io.github.blairjeon.stockflow.common.error;
 
-import io.github.blairjeon.stockflow.ErrorCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;

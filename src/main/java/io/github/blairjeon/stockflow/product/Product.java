@@ -2,7 +2,6 @@ package io.github.blairjeon.stockflow.product;
 
 import io.github.blairjeon.stockflow.common.BaseTimeEntity;
 import io.github.blairjeon.stockflow.common.Money;
-import io.github.blairjeon.stockflow.order.Quantity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -48,14 +47,14 @@ public class Product extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ProductStatus productStatus;
+    private ProductStatus status;
 
     private Product(Long userId, String name, Money price, StockQuantity stockQuantity){
         this.userId = Objects.requireNonNull(userId);
         this.name = Objects.requireNonNull(name);
         this.price = Objects.requireNonNull(price);
         this.stockQuantity = Objects.requireNonNull(stockQuantity);
-        this.productStatus = ProductStatus.ACTIVE;
+        this.status = ProductStatus.ACTIVE;
     }
 
     public static Product create(Long userId, String name, Money price, StockQuantity stockQuantity){
@@ -75,6 +74,6 @@ public class Product extends BaseTimeEntity {
     }
 
     public void updateStatus(ProductStatus productStatus){
-        this.productStatus = Objects.requireNonNull(productStatus);
+        this.status = Objects.requireNonNull(productStatus);
     }
 }

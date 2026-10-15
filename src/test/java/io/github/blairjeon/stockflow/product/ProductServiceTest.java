@@ -1,6 +1,6 @@
 package io.github.blairjeon.stockflow.product;
 
-import io.github.blairjeon.stockflow.ErrorCode;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
 import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.product.dto.ProductCreateRequest;
@@ -48,12 +48,12 @@ class ProductServiceTest {
         );
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.SELLER))
+        when(userRepository.existsByIdAndRole(1L, UserRole.SELLER))
                 .thenReturn(true);
 
         productService.create(1L, request);
 
-        verify(userRepository).existsByIdAndUserRole(1L, UserRole.SELLER);
+        verify(userRepository).existsByIdAndRole(1L, UserRole.SELLER);
         verify(productRepository).save(productCaptor.capture());
 
         Product savedProduct = productCaptor.getValue();
@@ -71,14 +71,14 @@ class ProductServiceTest {
                 100
         );
 
-        when(userRepository.existsByIdAndUserRole(1L, UserRole.SELLER))
+        when(userRepository.existsByIdAndRole(1L, UserRole.SELLER))
                 .thenReturn(false);
 
         assertEquals(ErrorCode.SELLER_ONLY,
                 assertThrows(BusinessException.class,
                         () -> productService.create(1L, request)).getErrorCode());
 
-        verify(userRepository).existsByIdAndUserRole(1L, UserRole.SELLER);
+        verify(userRepository).existsByIdAndRole(1L, UserRole.SELLER);
         verifyNoInteractions(productRepository);
     }
 
@@ -193,35 +193,31 @@ class ProductServiceTest {
                 ProductStatus.INACTIVE
         );
 
-        ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-
-        when(productRepository.findByUserIdAndId(1L, 10L))
+        when(productRepository.findWithLockByUserIdAndId(1L, 10L))
                 .thenReturn(Optional.of(product));
 
         productService.update(1L, 10L, request);
 
-        verify(productRepository).findByUserIdAndId(1L, 10L);
-        verify(productRepository).save(productCaptor.capture());
+        verify(productRepository).findWithLockByUserIdAndId(1L, 10L);
 
-        Product result = productCaptor.getValue();
-        assertEquals("update-product-name", result.getName());
-        assertEquals(new BigDecimal("111.11"), result.getPrice().amount());
-        assertEquals(200, result.getStockQuantity().value());
-        assertEquals(ProductStatus.INACTIVE, result.getProductStatus());
+        assertEquals("update-product-name", product.getName());
+        assertEquals(new BigDecimal("111.11"), product.getPrice().amount());
+        assertEquals(200, product.getStockQuantity().value());
+        assertEquals(ProductStatus.INACTIVE, product.getStatus());
     }
 
     @Test
     void shouldThrowExceptionWhenUserIsNotOwner(){
         ProductUpdateRequest request = new ProductUpdateRequest(null, null, null, null);
 
-        when(productRepository.findByUserIdAndId(1L, 10L))
+        when(productRepository.findWithLockByUserIdAndId(1L, 10L))
                 .thenReturn(Optional.empty());
 
         assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
                 assertThrows(BusinessException.class,
                         () -> productService.update(1L, 10L, request)).getErrorCode());
 
-        verify(productRepository).findByUserIdAndId(1L, 10L);
+        verify(productRepository).findWithLockByUserIdAndId(1L, 10L);
         verify(productRepository, never()).save(any());
     }
 
@@ -235,23 +231,23 @@ class ProductServiceTest {
         );
         ReflectionTestUtils.setField(product, "id", 10L);
 
-        when(productRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(product));
+        when(productRepository.findWithLockByUserIdAndId(1L, 10L)).thenReturn(Optional.of(product));
 
         productService.delete(1L, 10L);
 
-        verify(productRepository).findByUserIdAndId(1L, 10L);
+        verify(productRepository).findWithLockByUserIdAndId(1L, 10L);
     }
 
     @Test
     void shouldThrowExceptionWhenDeletingProductNotOwnedByUser(){
-        when(productRepository.findByUserIdAndId(1L, 10L))
+        when(productRepository.findWithLockByUserIdAndId(1L, 10L))
                 .thenReturn(Optional.empty());
 
         assertEquals(ErrorCode.PRODUCT_NOT_FOUND,
                 assertThrows(BusinessException.class,
                         () -> productService.delete(1L, 10L)).getErrorCode());
 
-        verify(productRepository).findByUserIdAndId(1L, 10L);
+        verify(productRepository).findWithLockByUserIdAndId(1L, 10L);
         verify(productRepository, never()).delete(any());
     }
 }

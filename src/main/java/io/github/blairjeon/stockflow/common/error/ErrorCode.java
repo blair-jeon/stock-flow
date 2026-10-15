@@ -1,4 +1,4 @@
-package io.github.blairjeon.stockflow;
+package io.github.blairjeon.stockflow.common.error;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
