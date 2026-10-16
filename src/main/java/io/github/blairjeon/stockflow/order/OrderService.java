@@ -2,10 +2,7 @@ package io.github.blairjeon.stockflow.order;
 
 import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
-import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;
-import io.github.blairjeon.stockflow.order.dto.OrderItemRequest;
-import io.github.blairjeon.stockflow.order.dto.OrderResponse;
-import io.github.blairjeon.stockflow.order.dto.OrderSummaryResponse;
+import io.github.blairjeon.stockflow.order.dto.*;
 import io.github.blairjeon.stockflow.order.repository.OrderItemRepository;
 import io.github.blairjeon.stockflow.order.repository.OrderRepository;
 import io.github.blairjeon.stockflow.product.Product;
@@ -33,7 +30,7 @@ public class OrderService {
     private final ProductRepository productRepository;
 
     @Transactional
-    public void create(Long userId, OrderCreateRequest request) {
+    public OrderCreateResponse create(Long userId, OrderCreateRequest request) {
         List<OrderItemRequest> sortedRequest = request.items().stream()
                 .sorted(Comparator.comparing(OrderItemRequest::productId))
                 .toList();
@@ -102,9 +99,10 @@ public class OrderService {
             items.add(item);
         }
 
-        // 주문을 먼저 저장한 뒤, 그 주문을 참조하는 항목을 저장
         orderRepository.save(order);
         orderItemRepository.saveAll(items);
+
+        return OrderCreateResponse.from(order);
     }
 
     public OrderResponse getOrder(Long userId, Long orderId) {

@@ -1,6 +1,7 @@
 package io.github.blairjeon.stockflow.order;
 
 import io.github.blairjeon.stockflow.order.dto.OrderCreateRequest;
+import io.github.blairjeon.stockflow.order.dto.OrderCreateResponse;
 import io.github.blairjeon.stockflow.order.dto.OrderResponse;
 import io.github.blairjeon.stockflow.order.dto.OrderSummaryResponse;
 import jakarta.validation.Valid;
@@ -21,11 +22,11 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public void create(
+    public OrderCreateResponse create(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody OrderCreateRequest request
     ){
-        orderService.create(userId, request);
+        return orderService.create(userId, request);
     }
 
     @PostMapping("/{orderId}/cancel")
