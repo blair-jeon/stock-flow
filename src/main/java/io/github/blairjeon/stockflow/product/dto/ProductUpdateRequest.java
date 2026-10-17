@@ -1,19 +1,18 @@
 package io.github.blairjeon.stockflow.product.dto;
 
-import io.github.blairjeon.stockflow.product.ProductStatus;
-import jakarta.validation.constraints.PositiveOrZero;
+import io.github.blairjeon.stockflow.product.entity.ProductStatus;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 
 import java.math.BigDecimal;
 
 public record ProductUpdateRequest(
         String name,
 
-        @PositiveOrZero(message = "Price must be zero or greater.")
-        BigDecimal price,
+        @DecimalMin("0.00")
+        @Digits(integer = 17, fraction = 2)
+        BigDecimal unitPrice,
 
-        @PositiveOrZero(message = "Stock quantity must be zero or greater.")
-        Integer stockQuantity,
-
-        ProductStatus productStatus
+        ProductStatus status
 ) {
 }

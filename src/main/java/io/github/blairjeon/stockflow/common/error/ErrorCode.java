@@ -48,6 +48,22 @@ public enum ErrorCode {
             HttpStatus.FORBIDDEN,
             "You do not have permission."
     ),
+    USER_SUSPENDED(
+            HttpStatus.FORBIDDEN,
+            "User account is suspended."
+    ),
+    USER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "User not found"
+    ),
+    USER_PROFILE_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "User profile not found."
+    ),
+    USER_PROFILE_ALREADY_EXISTS(
+            HttpStatus.CONFLICT,
+            "User profile already exists"
+    ),
     SELLER_ONLY(
             HttpStatus.FORBIDDEN,
             "Only sellers can do this."
@@ -59,6 +75,10 @@ public enum ErrorCode {
     ORDER_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "The order was not found."
+    ),
+    STOCK_ADJUSTMENT_FAILED(
+            HttpStatus.CONFLICT,
+            "Unable to adjust stock."
     ),
     LOGIN_ID_TAKEN(
             HttpStatus.CONFLICT,
@@ -87,6 +107,10 @@ public enum ErrorCode {
     SERVER_ERROR(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "Something went wrong on the server."
+    ),
+    UPDATE_CONFLICT(
+            HttpStatus.CONFLICT,
+            "Data changed. Please reload and try again."
     ),
     SERVICE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE,

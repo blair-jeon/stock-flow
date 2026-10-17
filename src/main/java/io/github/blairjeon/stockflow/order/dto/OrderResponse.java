@@ -1,23 +1,24 @@
 package io.github.blairjeon.stockflow.order.dto;
 
-import io.github.blairjeon.stockflow.order.Order;
-import io.github.blairjeon.stockflow.order.OrderItem;
-import io.github.blairjeon.stockflow.order.OrderStatus;
+import io.github.blairjeon.stockflow.order.entity.Order;
+import io.github.blairjeon.stockflow.order.entity.OrderStatus;
 
 import java.util.List;
 
 public record OrderResponse(
-        Long id,
-        OrderStatus orderStatus,
+        Long orderId,
+        OrderStatus status,
+        String name,
+        int lineCount,
         List<OrderItemResponse> items
 ) {
-    public static OrderResponse from(Order order, List<OrderItem> items) {
+    public static OrderResponse from(Order order, List<OrderItemResponse> items){
         return new OrderResponse(
                 order.getId(),
                 order.getStatus(),
-                items.stream()
-                        .map(OrderItemResponse::from)
-                        .toList()
+                order.getName(),
+                order.getLineCount(),
+                items
         );
     }
 }

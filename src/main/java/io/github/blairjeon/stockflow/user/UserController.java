@@ -7,44 +7,60 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/users")
 public class UserController {
-
     private final UserService userService;
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
-    public void create(@Valid @RequestBody UserCreateRequest request){
-        userService.create(request);
+    public UserResponse create(
+            @Valid @RequestBody UserCreateRequest request
+    ){
+        return userService.create(request);
     }
 
-    @GetMapping("/me")
+    @PostMapping("/profile")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void createProfile(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody UserProfileCreateRequest request
+    ){
+        userService.createProfile(userId, request);
+    }
+
+    @GetMapping
     public UserResponse get(@AuthenticationPrincipal Long userId){
-        return userService.get(userId);
+        return userService.getUser(userId);
     }
 
-    @PatchMapping("/me/password")
+    @GetMapping("/profile")
+    public UserProfileResponse getProfile(@AuthenticationPrincipal Long userId){
+        return userService.getProfile(userId);
+    }
+
+    @PatchMapping("/password")
     public void updatePassword(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserPasswordUpdateRequest request
-    ){
+    ) {
         userService.updatePassword(userId, request);
     }
 
-    @PatchMapping("/me/name")
-    public void updateDisplayName(
+    @PatchMapping("/profile")
+    public void updateProfile(
             @AuthenticationPrincipal Long userId,
-            @Valid @RequestBody UserDisplayNameUpdateRequest request
+            @RequestBody UserProfileUpdateRequest request
     ){
-        userService.updateDisplayName(userId, request);
+        userService.updateProfile(userId, request);
     }
 
-    @DeleteMapping("/me")
+    @DeleteMapping("/delete")
     public void delete(
             @AuthenticationPrincipal Long userId,
-            @Valid @RequestBody UserDeleteRequest request
+            @Valid @RequestBody UserPasswordRequest request
     ){
         userService.delete(userId, request);
     }

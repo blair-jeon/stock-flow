@@ -1,7 +1,7 @@
 package io.github.blairjeon.stockflow.auth;
 
 import io.github.blairjeon.stockflow.auth.dto.LoginRequest;
-import io.github.blairjeon.stockflow.auth.dto.RefreshTokenRequest;
+import io.github.blairjeon.stockflow.auth.dto.TokenRefreshRequest;
 import io.github.blairjeon.stockflow.auth.dto.TokenResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +22,12 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public String refreshAccessToken(@Valid @RequestBody RefreshTokenRequest refreshToken){
-        return authService.refreshAccessToken(refreshToken);
+    public TokenResponse refreshToken(@Valid @RequestBody TokenRefreshRequest request){
+        return authService.refreshCreateToken(request.token());
     }
 
-    // public void logout(){}
-    // Redis 추가시 업데이트예정
+    @PostMapping("/logout")
+    public void logout(){
+        authService.logout();
+    }
 }

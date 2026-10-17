@@ -1,13 +1,15 @@
 package io.github.blairjeon.stockflow.product;
 
-import io.github.blairjeon.stockflow.common.error.ErrorCode;
-import io.github.blairjeon.stockflow.common.Money;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
-import io.github.blairjeon.stockflow.product.dto.ProductCreateRequest;
-import io.github.blairjeon.stockflow.product.dto.ProductResponse;
-import io.github.blairjeon.stockflow.product.dto.ProductUpdateRequest;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
+import io.github.blairjeon.stockflow.product.dto.*;
+import io.github.blairjeon.stockflow.product.entity.Inventory;
+import io.github.blairjeon.stockflow.product.entity.Product;
+import io.github.blairjeon.stockflow.product.entity.ProductStatus;
+import io.github.blairjeon.stockflow.product.repository.InventoryRepository;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
-import io.github.blairjeon.stockflow.user.UserRole;
+import io.github.blairjeon.stockflow.user.entity.User;
+import io.github.blairjeon.stockflow.user.entity.UserRole;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -15,70 +17,83 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ProductService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final InventoryRepository inventoryRepository;
 
     @Transactional
-    public void create(Long userId, ProductCreateRequest request){
-        if(!userRepository.existsByIdAndRole(userId, UserRole.SELLER)) {
+    public ProductDetailResponse create(Long userId, ProductCreateRequest request){
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(!user.getRole().equals(UserRole.SELLER)){
             throw new BusinessException(ErrorCode.SELLER_ONLY);
         }
 
         Product product = Product.create(
-                userId,
+                user.getId(),
                 request.name(),
-                new Money(request.price()),
-                new StockQuantity(request.stockQuantity())
+                request.unitPrice()
         );
+        Product savedProduct = productRepository.save(product);
 
-        productRepository.save(product);
+        Inventory inventory = Inventory.create(
+                product.getId(),
+                request.stock()
+        );
+        Inventory savedInventory = inventoryRepository.save(inventory);
+
+        return ProductDetailResponse.from(user, savedProduct, savedInventory);
     }
 
-    public ProductResponse getProduct(Long productId){
-        Product product = productRepository.findById(productId)
-                .orElseThrow(
-                        () -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        return ProductResponse.from(product);
+    public ProductDetailResponse getProduct(Long productId){
+        return productRepository.findDetailById(productId, List.of(ProductStatus.ACTIVE, ProductStatus.SUSPENDED))
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 
-    public Slice<ProductResponse> getProducts(Pageable pageable){
-        return productRepository.findAllBy(pageable)
-                .map(ProductResponse::from);
+    public Slice<ProductSummaryResponse> getProducts(Pageable pageable){
+        return productRepository.findProducts(
+                List.of(ProductStatus.ACTIVE, ProductStatus.SUSPENDED),
+                pageable
+        );
     }
 
     @Transactional
     public void update(Long userId, Long productId, ProductUpdateRequest request){
         Product product = productRepository.findWithLockByUserIdAndId(userId, productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+                        .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+        product.update(request.name(), request.unitPrice(), request.status());
+    }
 
-        if (request.name() != null) {
-            if (request.name().isBlank()) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT);
-            }
-            product.updateName(request.name());
-        }
+    @Transactional
+    public void adjustStock(Long userId, Long productId, InventoryAdjustmentRequest request){
+        int updated = inventoryRepository.adjust(userId, productId, request.adjustment());
 
-        if(request.price()!=null){
-            product.updatePrice(new Money(request.price()));
-        }
-
-        if(request.stockQuantity()!=null){
-            product.updateStockQuantity(new StockQuantity(request.stockQuantity()));
-        }
-
-        if(request.productStatus()!=null){
-            product.updateStatus(request.productStatus());
+        if(updated!=1){
+            throw new BusinessException(ErrorCode.STOCK_ADJUSTMENT_FAILED);
         }
     }
 
     @Transactional
+    public void updateInventory(Long userId, Long productId, InventoryUpdateRequest request){
+        Inventory inventory = inventoryRepository.findWithLockByUserIdAndProductId(userId, productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        inventory.updateStock(request.stockQuantity());
+    }
+
+    @Transactional
     public void delete(Long userId, Long productId){
-        Product product = productRepository.findWithLockByUserIdAndId(userId, productId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        product.updateStatus(ProductStatus.DISCONTINUED);
+        Product product = productRepository.findByUserIdAndId(userId, productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        inventoryRepository.deleteById(product.getId());
+        productRepository.delete(product);
     }
 }

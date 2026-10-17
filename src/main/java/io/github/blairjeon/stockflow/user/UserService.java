@@ -1,8 +1,11 @@
 package io.github.blairjeon.stockflow.user;
 
-import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.user.dto.*;
+import io.github.blairjeon.stockflow.user.entity.User;
+import io.github.blairjeon.stockflow.user.entity.UserProfile;
+import io.github.blairjeon.stockflow.user.repository.UserProfileRepository;
 import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -16,69 +19,123 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserService {
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public void create(UserCreateRequest request){
-        if(userRepository.existsByLoginId(request.login())){
+    public UserResponse create(UserCreateRequest request){
+        if(userRepository.existsByLoginId(request.loginId())){
             throw new BusinessException(ErrorCode.LOGIN_ID_TAKEN);
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
 
-        User user = User.create(request.login(), encodedPassword, request.displayName());
+        User user = User.create(request.loginId(), encodedPassword);
 
         try {
-            userRepository.saveAndFlush(user);
+            User savedUser = userRepository.saveAndFlush(user);
+            return UserResponse.from(savedUser);
         } catch (DataIntegrityViolationException e) {
-            if(e.getCause() instanceof ConstraintViolationException cve)
-                if("uk_users_loginId".equals(cve.getConstraintName())){
+            Throwable cause = e;
+
+            while(cause!=null){
+                if(cause instanceof ConstraintViolationException violation
+                && "uk_users_login_id".equals(violation.getConstraintName())){
                     throw new BusinessException(ErrorCode.LOGIN_ID_TAKEN);
                 }
+                cause = cause.getCause();
+            }
             throw e;
         }
     }
 
-    public UserResponse get(Long userId){
+    @Transactional
+    public void createProfile(Long userId, UserProfileCreateRequest request){
+        if(!userRepository.existsById(userId)){
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
 
-        return UserResponse.from(getUserById(userId));
+        if(userProfileRepository.existsById(userId)){
+            throw new BusinessException(ErrorCode.USER_PROFILE_ALREADY_EXISTS);
+        }
+
+        UserProfile profile = UserProfile.create(
+                userId,
+                request.lastName(),
+                request.firstName(),
+                request.phoneNumber(),
+                request.email(),
+                request.address()
+        );
+
+        userProfileRepository.save(profile);
+    }
+
+    public UserResponse getUser(Long userId){
+        User user = getUserById(userId);
+        return UserResponse.from(user);
+    }
+
+    public UserProfileResponse getProfile(Long userId){
+        UserProfile profile = getProfileById(userId);
+        return UserProfileResponse.from(profile);
     }
 
     @Transactional
     public void updatePassword(Long userId, UserPasswordUpdateRequest request){
         User user = getUserById(userId);
-        verifyPassword(request.oldPassword(), user.getPasswordHash());
 
-        String newPassword = passwordEncoder.encode(request.newPassword());
-        user.updatePassword(newPassword);
+        if(!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())){
+            throw new BusinessException(ErrorCode.WRONG_PASSWORD);
+        }
+
+        String encodedPassword = passwordEncoder.encode(request.newPassword());
+        user.updatePassword(encodedPassword);
     }
 
     @Transactional
-    public void updateDisplayName(Long userId, UserDisplayNameUpdateRequest request){
-        User user = getUserById(userId);
-        verifyPassword(request.password(), user.getPasswordHash());
+    public void updateProfile(Long userId, UserProfileUpdateRequest request){
+        if(!userRepository.existsById(userId)){
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
 
-        user.updateDisplayName(request.displayName());
+        if(request.isEmpty()){
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        UserProfile profile = getProfileById(userId);
+        profile.updateProfile(
+                request.lastName(),
+                request.firstName(),
+                request.phoneNumber(),
+                request.email(),
+                request.address()
+        );
+
+        userProfileRepository.save(profile);
     }
 
     @Transactional
-    public void delete(Long userId, UserDeleteRequest request){
+    public void delete(Long userId, UserPasswordRequest request){
         User user = getUserById(userId);
-        verifyPassword(request.password(), user.getPasswordHash());
 
+        if(!passwordEncoder.matches(request.password(), user.getPasswordHash())){
+            throw new BusinessException(ErrorCode.WRONG_PASSWORD);
+        }
+
+        if(userProfileRepository.existsById(userId)){
+            userProfileRepository.deleteById(userId);
+        }
         userRepository.delete(user);
     }
 
     private User getUserById(Long userId){
         return userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.TOKEN_USER_NOT_FOUND)
-                );
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
-    private void verifyPassword(String rawPassword, String encodedPassword){
-        if(!passwordEncoder.matches(rawPassword, encodedPassword)){
-            throw new BusinessException(ErrorCode.WRONG_PASSWORD);
-        }
+    private UserProfile getProfileById(Long userId){
+        return userProfileRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_PROFILE_NOT_FOUND));
     }
 }

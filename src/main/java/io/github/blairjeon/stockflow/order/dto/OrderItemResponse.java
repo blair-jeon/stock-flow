@@ -1,23 +1,21 @@
 package io.github.blairjeon.stockflow.order.dto;
 
-import io.github.blairjeon.stockflow.order.OrderItem;
+import io.github.blairjeon.stockflow.order.entity.OrderItem;
 
 import java.math.BigDecimal;
 
 public record OrderItemResponse(
-        Long id,
         Long productId,
         String productName,
-        BigDecimal unitPrice,
-        Integer quantity
+        int quantity,
+        BigDecimal unitPrice
 ) {
-    public static OrderItemResponse from(OrderItem item) {
+    public static OrderItemResponse from(OrderItem orderItem){
         return new OrderItemResponse(
-                item.getId(),
-                item.getProductId(),
-                item.getProductName(),
-                item.getUnitPrice().amount(),
-                item.getQuantity().value()
+                orderItem.getProductId(),
+                orderItem.getProductName(),
+                orderItem.getQuantity(),
+                orderItem.getUnitPrice()
         );
     }
 }

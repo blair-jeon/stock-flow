@@ -7,12 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record OrderCreateRequest(
-
-        @NotEmpty(message = "Please add at least one order item.")
-        List<
-                @NotNull(message = "Order item must not be null.")
-                @Valid OrderItemRequest
-                > items
-
+        @NotEmpty
+        List<@NotNull @Valid OrderItemRequest> items
 ) {
 }

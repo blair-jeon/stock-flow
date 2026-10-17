@@ -1,16 +1,20 @@
 package io.github.blairjeon.stockflow.order;
 
-import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.common.error.BusinessException;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.order.dto.*;
+import io.github.blairjeon.stockflow.order.entity.Order;
+import io.github.blairjeon.stockflow.order.entity.OrderItem;
 import io.github.blairjeon.stockflow.order.repository.OrderItemRepository;
 import io.github.blairjeon.stockflow.order.repository.OrderRepository;
-import io.github.blairjeon.stockflow.product.Product;
-import io.github.blairjeon.stockflow.product.ProductStatus;
+import io.github.blairjeon.stockflow.product.entity.Product;
+import io.github.blairjeon.stockflow.product.entity.ProductStatus;
+import io.github.blairjeon.stockflow.product.repository.InventoryRepository;
 import io.github.blairjeon.stockflow.product.repository.ProductRepository;
+import io.github.blairjeon.stockflow.user.entity.UserStatus;
+import io.github.blairjeon.stockflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +29,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class OrderService {
+
+    private final UserRepository userRepository;
+    private final ProductRepository productRepository;
+    private final InventoryRepository inventoryRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final ProductRepository productRepository;
 
     @Transactional
-    public OrderCreateResponse create(Long userId, OrderCreateRequest request) {
+    public OrderCreateResponse create(Long userId, OrderCreateRequest request){
+        if(!userRepository.existsByIdAndStatus(userId, UserStatus.ACTIVE)){
+            throw new BusinessException(ErrorCode.USER_SUSPENDED);
+        }
+
         List<OrderItemRequest> sortedRequest = request.items().stream()
                 .sorted(Comparator.comparing(OrderItemRequest::productId))
                 .toList();
@@ -40,63 +51,41 @@ public class OrderService {
                 .distinct()
                 .toList();
 
-        if (sortedRequest.size() != productIds.size()) {
+        if(sortedRequest.size()!=productIds.size()){
             throw new BusinessException(ErrorCode.DUPLICATE_ORDER_ITEM);
         }
 
-        Map<Long, Product> productsById =
-                productRepository.findAllById(productIds).stream()
-                        .collect(Collectors.toMap(
-                                Product::getId,
-                                Function.identity()
-                        ));
+        Map<Long, Product> productMap = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(
+                        Product::getId,
+                        Function.identity()
+                ));
 
         Order order = Order.create(userId);
         List<OrderItem> items = new ArrayList<>();
 
-        for (OrderItemRequest itemRequest : sortedRequest) {
-            Product product = productsById.get(itemRequest.productId());
+        for(OrderItemRequest itemRequest:sortedRequest){
+            Product product = productMap.get(itemRequest.productId());
 
-            if (product == null) {
+            if(product==null){
                 throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
             }
 
-            if (product.getStatus() != ProductStatus.ACTIVE) {
-                throw new BusinessException(ErrorCode.PRODUCT_NOT_FOR_SALE);
-            }
+            int successCount = inventoryRepository.decrease(
+                    product.getId(),
+                    product.getUnitPrice(),
+                    itemRequest.quantity(),
+                    ProductStatus.ACTIVE
+            );
 
-            Quantity quantity = new Quantity(itemRequest.quantity());
-
-            if (product.getStockQuantity().value() < quantity.value()) {
+            if(successCount!=1){
                 throw new BusinessException(ErrorCode.NOT_ENOUGH_STOCK);
             }
 
-            int updatedRows = productRepository.decreaseStock(
-                    product.getId(),
-                    quantity.value(),
-                    product.getPrice().amount()
-            );
+            OrderItem orderItem = OrderItem.create(order, product, itemRequest.quantity());
+            items.add(orderItem);
 
-            if (updatedRows == 0) {
-                throw new BusinessException(ErrorCode.ORDER_CONFLICT);
-            }
-
-            if (updatedRows != 1) {
-                throw new IllegalStateException(
-                        "Unexpected stock update count: " + updatedRows
-                );
-            }
-
-            OrderItem item = OrderItem.create(
-                    order,
-                    product.getId(),
-                    product.getName(),
-                    product.getPrice(),
-                    quantity
-            );
-
-            order.addItem(item);
-            items.add(item);
+            order.addItem(orderItem);
         }
 
         orderRepository.save(order);
@@ -105,50 +94,41 @@ public class OrderService {
         return OrderCreateResponse.from(order);
     }
 
-    public OrderResponse getOrder(Long userId, Long orderId) {
-        Order order = orderRepository.findByUserIdAndId(userId, orderId)
-                .orElseThrow(
-                        () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND)
-                );
-
-        List<OrderItem> orderItems = orderItemRepository.findAllByOrderId(orderId);
-
-        return OrderResponse.from(order, orderItems);
-    }
-
-    public Slice<OrderSummaryResponse> getOrders(Long userId, Pageable pageable){
-        Slice<Order> orders = orderRepository.findAllByUserId(userId, pageable);
-
-        return orders.map(OrderSummaryResponse::from);
-    }
-
     @Transactional
-    public void cancel(Long userId, Long orderId){
+    public OrderCancelResponse cancel(Long userId, Long orderId){
         Order order = orderRepository.findWithLockByUserIdAndId(userId, orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-
         order.cancel();
 
-        List<OrderItem> items = orderItemRepository.findAllByOrderId(orderId).stream()
-                .sorted(Comparator.comparing(OrderItem::getProductId))
-                .toList();
-
-        if(items.isEmpty()){
-            throw new IllegalStateException(
-                    "Order has no items. orderId=" + orderId
-            );
-        }
+        List<OrderItem> items = orderItemRepository.findAllByOrder(order);
 
         for(OrderItem item:items){
-            int updateRows = productRepository.increaseStock(item.getProductId(), item.getQuantity().value());
+            int successCount = inventoryRepository.increase(item.getProductId(), item.getQuantity());
 
-            if(updateRows!=1){
-                throw new IllegalStateException(
-                        "Stock restore failed. orderId=" + orderId
-                                + ", productId=" + item.getProductId()
-                                + ", updatedRows=" + updateRows
-                );
+            if(successCount!=1){
+                throw new BusinessException(ErrorCode.NOT_ENOUGH_STOCK);
             }
         }
+
+        return OrderCancelResponse.from(order);
+    }
+
+    public OrderResponse getOrder(Long userId, Long orderId){
+        Order order = orderRepository.findByUserIdAndId(userId, orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        List<OrderItemResponse> items = orderItemRepository.findAllByOrder(order)
+                .stream()
+                .map(OrderItemResponse::from)
+                .toList();
+
+        return OrderResponse.from(order, items);
+    }
+
+    public List<OrderDetailResponse> getOrders(Long userId, Pageable pageable){
+        return orderRepository.findAllByUserId(userId, pageable)
+                .stream()
+                .map(OrderDetailResponse::from)
+                .toList();
     }
 }
