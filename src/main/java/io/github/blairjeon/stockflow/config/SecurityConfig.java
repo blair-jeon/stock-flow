@@ -32,9 +32,10 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/users/signup").permitAll()
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/auth/login", "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/products", "/products/{productId}").permitAll()
                         .requestMatchers("/users", "/users/**").authenticated()
+                        .requestMatchers("/auth", "/auth/**").authenticated()
                         .requestMatchers("/orders", "/orders/**").authenticated()
                         .requestMatchers("/products", "/products/**").hasAnyRole("SELLER", "ADMIN")
                         .anyRequest().authenticated()

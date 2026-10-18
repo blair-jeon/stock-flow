@@ -5,6 +5,7 @@ import io.github.blairjeon.stockflow.auth.dto.TokenRefreshRequest;
 import io.github.blairjeon.stockflow.auth.dto.TokenResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +28,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public void logout(){
-        authService.logout();
+    public void logout(@AuthenticationPrincipal Long userId){
+        authService.logout(userId);
     }
 }

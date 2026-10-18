@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtProvider {
@@ -26,6 +27,7 @@ public class JwtProvider {
 
         return Jwts.builder()
                 .signWith(key)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiry)
                 .subject(String.valueOf(userInfo.userId()))
@@ -40,6 +42,7 @@ public class JwtProvider {
 
         return Jwts.builder()
                 .signWith(key)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiry)
                 .subject(String.valueOf(userId))
