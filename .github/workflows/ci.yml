@@ -1,5 +1,3 @@
-name: CI - Test, Build and Publish
-
 on:
   pull_request:
     branches: [main]

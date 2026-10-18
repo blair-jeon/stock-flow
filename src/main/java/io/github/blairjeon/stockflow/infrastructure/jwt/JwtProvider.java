@@ -1,5 +1,7 @@
 package io.github.blairjeon.stockflow.infrastructure.jwt;
 
+import io.github.blairjeon.stockflow.common.error.BusinessException;
+import io.github.blairjeon.stockflow.common.error.ErrorCode;
 import io.github.blairjeon.stockflow.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -58,7 +60,6 @@ public class JwtProvider {
         );
     }
 
-    // TODO: 리턴타입 수정해야함, 개발초기라 정책미결정으로 수정하지 않음=
     public Long parseRefreshToken(String token){
         Claims claims = parseAndValidate(token, TokenType.REFRESH);
         return Long.valueOf(claims.getSubject());
@@ -73,8 +74,9 @@ public class JwtProvider {
                 .getPayload();
 
         TokenType actualType = TokenType.valueOf(claims.get("type", String.class));
+
         if(!actualType.equals(expectedType)) {
-            throw new RuntimeException();
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
         }
 
         return claims;
