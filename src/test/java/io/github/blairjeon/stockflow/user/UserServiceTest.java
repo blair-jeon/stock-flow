@@ -19,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.SQLException;
 import java.util.Optional;
@@ -30,24 +29,26 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+    private static final long USER_ID = 1L;
+    private static final long MISSING_USER_ID = 2L;
+    private static final String LOGIN_ID = "test-login-id";
+    private static final String PASSWORD = "test-password";
+    private static final String PASSWORD_HASH = "test-password-hash";
+
     @Mock private UserRepository userRepository;
     @Mock private UserProfileRepository userProfileRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @InjectMocks private UserService userService;
 
-    private User existsUser;
-    private UserProfile existsProfile;
+    private User existingUser;
+    private UserProfile existingProfile;
 
     @BeforeEach
-    void setUp(){
-        existsUser = User.create(
-                "test-login-id",
-                "test-password-hash"
-        );
-        ReflectionTestUtils.setField(existsUser, "id", 1L);
+    void setUp() {
+        existingUser = User.create(LOGIN_ID, PASSWORD_HASH);
 
-        existsProfile = UserProfile.create(
-                1L,
+        existingProfile = UserProfile.create(
+                USER_ID,
                 "test-last-name",
                 "test-first-name",
                 "000-000-0000",
@@ -57,45 +58,35 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldCreateUserWhenRequestIsValid(){
-        UserCreateRequest request = new UserCreateRequest(
-                "test-request-login-id",
-                "test-request-password"
-        );
+    void shouldCreateUserWithEncodedPassword() {
+        UserCreateRequest request = new UserCreateRequest(LOGIN_ID, PASSWORD);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
 
-        when(userRepository.existsByLoginId("test-request-login-id"))
-                .thenReturn(false);
-        when(passwordEncoder.encode("test-request-password"))
-                .thenReturn("test-encoded-password");
+        when(userRepository.existsByLoginId(LOGIN_ID)).thenReturn(false);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
         when(userRepository.saveAndFlush(any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         UserResponse response = userService.create(request);
 
-        verify(userRepository).existsByLoginId("test-request-login-id");
-        verify(passwordEncoder).encode("test-request-password");
         verify(userRepository).saveAndFlush(captor.capture());
         User savedUser = captor.getValue();
 
         assertAll(
-                () -> assertEquals("test-request-login-id", savedUser.getLoginId()),
-                () -> assertEquals("test-encoded-password", savedUser.getPasswordHash()),
+                () -> assertEquals(LOGIN_ID, savedUser.getLoginId()),
+                () -> assertEquals(PASSWORD_HASH, savedUser.getPasswordHash()),
                 () -> assertEquals(UserRole.USER, savedUser.getRole()),
-                () -> assertEquals(UserStatus.ACTIVE, savedUser.getStatus())
+                () -> assertEquals(UserStatus.ACTIVE, savedUser.getStatus()),
+                () -> assertEquals(new UserResponse(LOGIN_ID, UserRole.USER, UserStatus.ACTIVE), response)
         );
     }
 
     @Test
-    void shouldRejectSignupWhenLoginIdAlreadyExists(){
-        UserCreateRequest request = new UserCreateRequest(
-                "test-request-login-id",
-                "test-request-password"
-        );
+    void shouldRejectUserCreationWhenLoginIdAlreadyExists() {
+        UserCreateRequest request = new UserCreateRequest(LOGIN_ID, PASSWORD);
 
-        when(userRepository.existsByLoginId("test-request-login-id"))
-                .thenReturn(true);
+        when(userRepository.existsByLoginId(LOGIN_ID)).thenReturn(true);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> userService.create(request));
@@ -106,11 +97,8 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldRejectSignupWhenLoginIdUniqueConstrainIsViolated(){
-        UserCreateRequest request = new UserCreateRequest(
-                "test-request-login-id",
-                "test-request-password"
-        );
+    void shouldRejectUserCreationWhenLoginIdUniqueConstraintIsViolated() {
+        UserCreateRequest request = new UserCreateRequest(LOGIN_ID, PASSWORD);
 
         ConstraintViolationException cause = new ConstraintViolationException(
                 "Duplicate login ID",
@@ -120,10 +108,8 @@ class UserServiceTest {
 
         DataIntegrityViolationException dbException = new DataIntegrityViolationException("Insert failed", cause);
 
-        when(userRepository.existsByLoginId("test-request-login-id"))
-                .thenReturn(false);
-        when(passwordEncoder.encode("test-request-password"))
-                .thenReturn("test-encoded-password");
+        when(userRepository.existsByLoginId(LOGIN_ID)).thenReturn(false);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
         when(userRepository.saveAndFlush(any(User.class)))
                 .thenThrow(dbException);
 
@@ -132,40 +118,40 @@ class UserServiceTest {
                 () -> userService.create(request)
         );
 
-        verify(userRepository).existsByLoginId("test-request-login-id");
-        verify(passwordEncoder).encode("test-request-password");
         verify(userRepository).saveAndFlush(any(User.class));
         assertEquals(ErrorCode.LOGIN_ID_TAKEN, exception.getErrorCode());
     }
 
     @Test
-    void shouldCreateProfileWhenRequestIsValid(){
-        UserProfileCreateRequest request = new UserProfileCreateRequest(
-                "test-request-last-name",
-                "test-request-first-name",
-                "111-111-1111",
-                "test-request@email.com",
-                "test-request-address"
-        );
+    void shouldPropagateUnrelatedDatabaseConstraintViolations() {
+        ConstraintViolationException cause = new ConstraintViolationException(
+                "Other constraint violated", new SQLException("Constraint violation"), "other_constraint");
+        DataIntegrityViolationException dbException = new DataIntegrityViolationException("Insert failed", cause);
+        when(passwordEncoder.encode(PASSWORD)).thenReturn(PASSWORD_HASH);
+        when(userRepository.saveAndFlush(any(User.class))).thenThrow(dbException);
+
+        DataIntegrityViolationException exception = assertThrows(DataIntegrityViolationException.class,
+                () -> userService.create(new UserCreateRequest(LOGIN_ID, PASSWORD)));
+
+        assertSame(dbException, exception);
+    }
+
+    @Test
+    void shouldCreateProfileWhenUserExistsAndHasNoProfile() {
+        UserProfileCreateRequest request = validProfileCreateRequest();
 
         ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
 
-        when(userRepository.existsById(2L))
-                .thenReturn(true);
-        when(userProfileRepository.existsById(2L))
-                .thenReturn(false);
-        when(userProfileRepository.save(any(UserProfile.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(userProfileRepository.existsById(USER_ID)).thenReturn(false);
 
-        userService.createProfile(2L, request);
+        userService.createProfile(USER_ID, request);
 
-        verify(userRepository).existsById(2L);
-        verify(userProfileRepository).existsById(2L);
         verify(userProfileRepository).save(captor.capture());
         UserProfile savedProfile = captor.getValue();
 
         assertAll(
-                () -> assertEquals(2L, savedProfile.getUserId()),
+                () -> assertEquals(USER_ID, savedProfile.getUserId()),
                 () -> assertEquals("test-request-last-name", savedProfile.getLastName()),
                 () -> assertEquals("test-request-first-name", savedProfile.getFirstName()),
                 () -> assertEquals("111-111-1111", savedProfile.getPhoneNumber()),
@@ -175,88 +161,65 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldRejectCreateProfileWhenUserNotFound(){
-        UserProfileCreateRequest request = new UserProfileCreateRequest(
-                "test-request-last-name",
-                "test-request-first-name",
-                "111-111-1111",
-                "test-request@email.com",
-                "test-request-address"
-        );
+    void shouldRejectProfileCreationWhenUserDoesNotExist() {
+        UserProfileCreateRequest request = validProfileCreateRequest();
 
-        when(userRepository.existsById(2L))
-                .thenReturn(false);
+        when(userRepository.existsById(MISSING_USER_ID)).thenReturn(false);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.createProfile(2L, request)
+                () -> userService.createProfile(MISSING_USER_ID, request)
         );
 
-        verify(userRepository).existsById(2L);
         verifyNoInteractions(userProfileRepository);
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
-    void shouldRejectCreateProfileWhenProfileAlreadyExists(){
-        UserProfileCreateRequest request = new UserProfileCreateRequest(
-                "test-request-last-name",
-                "test-request-first-name",
-                "111-111-1111",
-                "test-request@email.com",
-                "test-request-address"
-        );
+    void shouldRejectProfileCreationWhenProfileAlreadyExists() {
+        UserProfileCreateRequest request = validProfileCreateRequest();
 
-        when(userRepository.existsById(2L))
-                .thenReturn(true);
-        when(userProfileRepository.existsById(2L))
-                .thenReturn(true);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(userProfileRepository.existsById(USER_ID)).thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.createProfile(2L, request)
+                () -> userService.createProfile(USER_ID, request)
         );
 
         assertEquals(ErrorCode.USER_PROFILE_ALREADY_EXISTS, exception.getErrorCode());
-        verify(userRepository).existsById(2L);
-        verify(userProfileRepository).existsById(2L);
         verify(userProfileRepository, never()).save(any());
     }
 
     @Test
-    void shouldGetUserWhenRequestIsValid(){
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(existsUser));
+    void shouldReturnUserWhenUserExists() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
 
-        UserResponse response = userService.getUser(1L);
+        UserResponse response = userService.getUser(USER_ID);
 
         assertAll(
-                () -> assertEquals("test-login-id", response.loginId()),
+                () -> assertEquals(LOGIN_ID, response.loginId()),
                 () -> assertEquals(UserRole.USER, response.role()),
                 () -> assertEquals(UserStatus.ACTIVE, response.status())
         );
     }
 
     @Test
-    void shouldRejectGetUserWhenUserNotFound(){
-        when(userRepository.findById(2L))
-                .thenReturn(Optional.empty());
+    void shouldThrowUserNotFoundWhenUserDoesNotExist() {
+        when(userRepository.findById(MISSING_USER_ID)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> userService.getUser(2L));
+                () -> userService.getUser(MISSING_USER_ID));
 
-        verify(userRepository).findById(2L);
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
-    void shouldGetProfileWhenRequestIsValid(){
-        when(userProfileRepository.findById(1L))
-                .thenReturn(Optional.of(existsProfile));
+    void shouldReturnProfileWhenProfileExists() {
+        when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.of(existingProfile));
 
-        UserProfileResponse response = userService.getProfile(1L);
+        UserProfileResponse response = userService.getProfile(USER_ID);
 
-        verify(userProfileRepository).findById(1L);
         assertAll(
                 () -> assertEquals("test-last-name", response.lastName()),
                 () -> assertEquals("test-first-name", response.firstName()),
@@ -267,80 +230,66 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldRejectGetProfileWhenProfileNotFound(){
-        when(userProfileRepository.findById(2L))
-                .thenReturn(Optional.empty());
+    void shouldThrowProfileNotFoundWhenProfileDoesNotExist() {
+        when(userProfileRepository.findById(MISSING_USER_ID)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.getProfile(2L)
+                () -> userService.getProfile(MISSING_USER_ID)
         );
 
-        verify(userProfileRepository).findById(2L);
         assertEquals(ErrorCode.USER_PROFILE_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
-    void shouldUpdatePasswordWhenRequestIsValid(){
+    void shouldUpdatePasswordWhenCurrentPasswordIsCorrect() {
         UserPasswordUpdateRequest request = new UserPasswordUpdateRequest(
-                "old-password",
+                PASSWORD,
                 "new-password"
         );
 
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(existsUser));
-        when(passwordEncoder.matches("old-password", existsUser.getPasswordHash()))
-                .thenReturn(true);
-        when(passwordEncoder.encode(request.newPassword()))
-                .thenReturn("test-new-password-hash");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches(PASSWORD, existingUser.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.encode(request.newPassword())).thenReturn("test-new-password-hash");
 
-        userService.updatePassword(1L, request);
+        userService.updatePassword(USER_ID, request);
 
-        verify(userRepository).findById(1L);
-        verify(passwordEncoder).matches("old-password", "test-password-hash");
-        verify(passwordEncoder).encode("new-password");
-
-        assertEquals("test-new-password-hash", existsUser.getPasswordHash());
+        assertEquals("test-new-password-hash", existingUser.getPasswordHash());
     }
 
     @Test
-    void shouldRejectUpdatePasswordWhenPasswordWrong(){
+    void shouldRejectPasswordUpdateWhenCurrentPasswordIsIncorrect() {
         UserPasswordUpdateRequest request = new UserPasswordUpdateRequest(
                 "wrong-password",
                 "new-password"
         );
 
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(existsUser));
-        when(passwordEncoder.matches("wrong-password", "test-password-hash"))
-                .thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("wrong-password", PASSWORD_HASH)).thenReturn(false);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.updatePassword(1L, request)
+                () -> userService.updatePassword(USER_ID, request)
         );
 
-        verify(userRepository).findById(1L);
-        verify(passwordEncoder).matches("wrong-password", "test-password-hash");
         verify(passwordEncoder, never()).encode(any());
 
         assertEquals(ErrorCode.WRONG_PASSWORD, exception.getErrorCode());
-        assertEquals("test-password-hash", existsUser.getPasswordHash());
+        assertEquals(PASSWORD_HASH, existingUser.getPasswordHash());
     }
 
     @Test
-    void shouldRejectUpdatePasswordWhenUserNotFound(){
+    void shouldRejectPasswordUpdateWhenUserDoesNotExist() {
         UserPasswordUpdateRequest request = new UserPasswordUpdateRequest(
-                "old-password",
+                PASSWORD,
                 "new-password"
         );
 
-        when(userRepository.findById(2L))
-                .thenReturn(Optional.empty());
+        when(userRepository.findById(MISSING_USER_ID)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.updatePassword(2L, request)
+                () -> userService.updatePassword(MISSING_USER_ID, request)
         );
 
         verifyNoInteractions(passwordEncoder);
@@ -348,166 +297,162 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldUpdateProfileWhenRequestIsValid(){
-        UserProfileUpdateRequest request = new UserProfileUpdateRequest(
-                "test-update-last-name",
-                "test-update-first-name",
-                "111-111-1111",
-                "test-update@email.com",
-                "test-update-address"
-        );
+    void shouldUpdateAllProfileFields() {
+        UserProfileUpdateRequest request = validProfileUpdateRequest();
 
-        ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.of(existingProfile));
 
-        when(userRepository.existsById(1L))
-                .thenReturn(true);
-        when(userProfileRepository.findById(1L))
-                .thenReturn(Optional.of(existsProfile));
+        userService.updateProfile(USER_ID, request);
 
-        userService.updateProfile(1L, request);
-
-        verify(userProfileRepository).save(captor.capture());
-        UserProfile savedProfile = captor.getValue();
+        verify(userProfileRepository).save(existingProfile);
 
         assertAll(
-                () -> assertEquals("test-update-last-name", savedProfile.getLastName()),
-                () -> assertEquals("test-update-first-name", savedProfile.getFirstName()),
-                () -> assertEquals("111-111-1111", savedProfile.getPhoneNumber()),
-                () -> assertEquals("test-update@email.com", savedProfile.getEmail()),
-                () -> assertEquals("test-update-address", savedProfile.getAddress())
+                () -> assertEquals("test-update-last-name", existingProfile.getLastName()),
+                () -> assertEquals("test-update-first-name", existingProfile.getFirstName()),
+                () -> assertEquals("111-111-1111", existingProfile.getPhoneNumber()),
+                () -> assertEquals("test-update@email.com", existingProfile.getEmail()),
+                () -> assertEquals("test-update-address", existingProfile.getAddress())
         );
     }
 
     @Test
-    void shouldRejectUpdateProfileWhenUserNotFound(){
+    void shouldPreserveUnspecifiedFieldsWhenUpdatingProfile() {
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.of(existingProfile));
         UserProfileUpdateRequest request = new UserProfileUpdateRequest(
-                "test-update-last-name",
-                "test-update-first-name",
-                "111-111-1111",
-                "test-update@email.com",
-                "test-update-address"
-        );
+                null, null, null, "updated@email.com", null);
 
-        when(userRepository.existsById(2L))
-                .thenReturn(false);
+        userService.updateProfile(USER_ID, request);
+
+        verify(userProfileRepository).save(existingProfile);
+        assertAll(
+                () -> assertEquals("test-last-name", existingProfile.getLastName()),
+                () -> assertEquals("test-first-name", existingProfile.getFirstName()),
+                () -> assertEquals("000-000-0000", existingProfile.getPhoneNumber()),
+                () -> assertEquals("updated@email.com", existingProfile.getEmail()),
+                () -> assertEquals("test-address", existingProfile.getAddress())
+        );
+    }
+
+    @Test
+    void shouldRejectProfileUpdateWhenUserDoesNotExist() {
+        UserProfileUpdateRequest request = validProfileUpdateRequest();
+
+        when(userRepository.existsById(MISSING_USER_ID)).thenReturn(false);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.updateProfile(2L, request)
+                () -> userService.updateProfile(MISSING_USER_ID, request)
         );
 
-        verify(userRepository).existsById(2L);
         verifyNoInteractions(userProfileRepository);
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
-    void shouldRejectUpdateProfileWhenProfileNotFound(){
-        UserProfileUpdateRequest request = new UserProfileUpdateRequest(
-                "test-update-last-name",
-                "test-update-first-name",
-                "111-111-1111",
-                "test-update@email.com",
-                "test-update-address"
-        );
+    void shouldRejectProfileUpdateWhenProfileDoesNotExist() {
+        UserProfileUpdateRequest request = validProfileUpdateRequest();
 
-        when(userRepository.existsById(1L))
-                .thenReturn(true);
-        when(userProfileRepository.findById(1L))
-                .thenReturn(Optional.empty());
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.updateProfile(1L, request)
+                () -> userService.updateProfile(USER_ID, request)
         );
 
-        verify(userRepository).existsById(1L);
-        verify(userProfileRepository).findById(1L);
         verify(userProfileRepository, never()).save(any());
         assertEquals(ErrorCode.USER_PROFILE_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test
-    void shouldRejectUpdateProfileWhenRequestIsEmpty() {
+    void shouldRejectProfileUpdateWhenNoFieldsAreProvided() {
         UserProfileUpdateRequest request = new UserProfileUpdateRequest(
                 null, null, null, null, null
         );
 
-        when(userRepository.existsById(1L))
-                .thenReturn(true);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.updateProfile(1L, request)
+                () -> userService.updateProfile(USER_ID, request)
         );
 
-        verify(userRepository).existsById(1L);
         verifyNoInteractions(userProfileRepository);
 
         assertEquals(ErrorCode.INVALID_INPUT, exception.getErrorCode());
-        assertEquals("test-last-name", existsProfile.getLastName());
-        assertEquals("test-first-name", existsProfile.getFirstName());
-        assertEquals("000-000-0000", existsProfile.getPhoneNumber());
-        assertEquals("test@email.com", existsProfile.getEmail());
-        assertEquals("test-address", existsProfile.getAddress());
     }
 
     @Test
-    void shouldDeleteWhenRequestIsValid(){
-        UserPasswordRequest request = new UserPasswordRequest("password");
+    void shouldDeleteUserWhenUserHasNoProfile() {
+        UserPasswordRequest request = new UserPasswordRequest(PASSWORD);
 
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(existsUser));
-        when(passwordEncoder.matches("password", "test-password-hash"))
-                .thenReturn(true);
-        when(userProfileRepository.existsById(1L))
-                .thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH)).thenReturn(true);
+        when(userProfileRepository.existsById(USER_ID)).thenReturn(false);
 
-        userService.delete(1L, request);
+        userService.delete(USER_ID, request);
 
-        verify(userRepository).findById(1L);
-        verify(passwordEncoder).matches("password", "test-password-hash");
-        verify(userProfileRepository).existsById(1L);
-        verify(userRepository).delete(existsUser);
+        verify(userRepository).delete(existingUser);
+        verify(userProfileRepository, never()).deleteById(any());
     }
 
     @Test
-    void shouldRejectDeleteWhenUserNotFound(){
-        UserPasswordRequest request = new UserPasswordRequest("password");
+    void shouldDeleteUserAndProfileWhenUserHasProfile() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches(PASSWORD, PASSWORD_HASH)).thenReturn(true);
+        when(userProfileRepository.existsById(USER_ID)).thenReturn(true);
 
-        when(userRepository.findById(2L))
-                .thenReturn(Optional.empty());
+        userService.delete(USER_ID, new UserPasswordRequest(PASSWORD));
+
+        verify(userProfileRepository).deleteById(USER_ID);
+        verify(userRepository).delete(existingUser);
+    }
+
+    @Test
+    void shouldRejectUserDeletionWhenUserDoesNotExist() {
+        UserPasswordRequest request = new UserPasswordRequest(PASSWORD);
+
+        when(userRepository.findById(MISSING_USER_ID)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.delete(2L, request)
+                () -> userService.delete(MISSING_USER_ID, request)
         );
 
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
-        verify(userRepository).findById(2L);
         verifyNoInteractions(passwordEncoder);
         verifyNoInteractions(userProfileRepository);
         verify(userRepository, never()).delete(any());
     }
 
     @Test
-    void shouldRejectDeleteWhenWrongPassword() {
+    void shouldRejectUserDeletionWhenPasswordIsIncorrect() {
         UserPasswordRequest request = new UserPasswordRequest("wrong-password");
 
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(existsUser));
-        when(passwordEncoder.matches("wrong-password", "test-password-hash"))
-                .thenReturn(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("wrong-password", PASSWORD_HASH)).thenReturn(false);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> userService.delete(1L, request)
+                () -> userService.delete(USER_ID, request)
         );
 
         assertEquals(ErrorCode.WRONG_PASSWORD, exception.getErrorCode());
-        verify(passwordEncoder).matches("wrong-password", "test-password-hash");
-        verify(userProfileRepository, never()).existsById(any());
-        verify(userProfileRepository, never()).deleteById(any());
+        verifyNoInteractions(userProfileRepository);
         verify(userRepository, never()).delete(any());
+    }
+
+    private UserProfileCreateRequest validProfileCreateRequest() {
+        return new UserProfileCreateRequest(
+                "test-request-last-name", "test-request-first-name", "111-111-1111",
+                "test-request@email.com", "test-request-address");
+    }
+
+    private UserProfileUpdateRequest validProfileUpdateRequest() {
+        return new UserProfileUpdateRequest(
+                "test-update-last-name", "test-update-first-name", "111-111-1111",
+                "test-update@email.com", "test-update-address");
     }
 }

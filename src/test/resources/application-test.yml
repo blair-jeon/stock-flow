@@ -1,7 +1,7 @@
 spring:
   jpa:
     hibernate:
-      ddl-auto: create-only
+      ddl-auto: validate
 
 jwt:
   secret: stock-flow-test-1234-5678-9000-abcd-efgh-ijkl-mnop
