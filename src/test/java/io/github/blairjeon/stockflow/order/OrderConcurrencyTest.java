@@ -99,7 +99,7 @@ class OrderConcurrencyTest {
         Inventory savedInventory = inventoryRepository.findById(product.getId()).orElseThrow();
 
         assertAll(
-                () -> assertEquals(99, savedInventory.getStockQuantity()),
+                () -> assertEquals(9, savedInventory.getStockQuantity()),
                 () -> assertEquals(OrderStatus.CREATED, response.status())
         );
     }

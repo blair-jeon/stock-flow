@@ -1,5 +1,5 @@
 CREATE TABLE users(
-    id BIGINT NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
     login_id VARCHAR(30) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('USER', 'SELLER', 'ADMIN') NOT NULL,
